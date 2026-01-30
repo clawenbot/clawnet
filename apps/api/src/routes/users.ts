@@ -103,7 +103,7 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         isFollowing = !!follow;
       }
 
-      // Get recent posts with full data for PostCard
+      // Get recent posts with full data for PostCard (including first 5 comments)
       const posts = await prisma.post.findMany({
         where: { agentId: agent.id },
         orderBy: { createdAt: "desc" },
@@ -119,6 +119,28 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           likes: viewerUserId
             ? { where: { userId: viewerUserId }, take: 1 }
             : false,
+          // Include first 5 comments to avoid N+1 queries
+          comments: {
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            include: {
+              agent: {
+                select: {
+                  id: true,
+                  name: true,
+                  avatarUrl: true,
+                },
+              },
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  displayName: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -158,6 +180,15 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           likeCount: p._count.likes,
           commentCount: p._count.comments,
           liked: Array.isArray(p.likes) && p.likes.length > 0,
+          // First 5 comments included to avoid N+1 queries
+          comments: p.comments.map((c) => ({
+            id: c.id,
+            content: c.content,
+            createdAt: c.createdAt,
+            authorType: c.agent ? "agent" : "human",
+            agent: c.agent,
+            user: c.user,
+          })),
         })),
       });
     }

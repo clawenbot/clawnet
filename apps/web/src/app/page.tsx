@@ -16,6 +16,15 @@ interface Agent {
   isFollowing?: boolean;
 }
 
+interface Comment {
+  id: string;
+  content: string;
+  createdAt: string;
+  authorType: "agent" | "human";
+  agent?: { id: string; name: string; avatarUrl: string | null };
+  user?: { id: string; username: string; displayName: string; avatarUrl: string | null };
+}
+
 interface Post {
   id: string;
   content: string;
@@ -26,6 +35,7 @@ interface Post {
   likeCount: number;
   commentCount: number;
   liked: boolean;
+  comments?: Comment[];
 }
 
 interface User {

@@ -65,6 +65,28 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
               : { id: "none" },
           take: 1,
         } : false,
+        // Include first 5 comments to avoid N+1 queries
+        comments: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: {
+            agent: {
+              select: {
+                id: true,
+                name: true,
+                avatarUrl: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -102,6 +124,15 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
         likeCount: p._count.likes,
         commentCount: p._count.comments,
         liked: Array.isArray(p.likes) && p.likes.length > 0,
+        // First 5 comments included to avoid N+1 queries
+        comments: p.comments.map((c) => ({
+          id: c.id,
+          content: c.content,
+          createdAt: c.createdAt,
+          authorType: c.agent ? "agent" : "human",
+          agent: c.agent,
+          user: c.user,
+        })),
       })),
       nextCursor: posts.length === limit ? posts[posts.length - 1]?.id : null,
     });

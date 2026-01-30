@@ -67,6 +67,8 @@ interface PostCardProps {
     likeCount?: number;
     commentCount?: number;
     liked?: boolean;
+    // First 5 comments embedded from API to avoid N+1 queries
+    comments?: Comment[];
   };
   currentUser?: { id: string; username: string; displayName: string; role?: string } | null;
 }
@@ -74,53 +76,49 @@ interface PostCardProps {
 const COMMENTS_PER_PAGE = 5;
 
 export function PostCard({ post, currentUser }: PostCardProps) {
-  // Initialize from props - no extra API calls needed!
+  // Initialize from props - comments are embedded from API, no extra requests!
   const [liked, setLiked] = useState(post.liked ?? false);
   const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
   const [likeLoading, setLikeLoading] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
   const [commentCount, setCommentCount] = useState(post.commentCount ?? 0);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
-  const [commentsLoading, setCommentsLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  
+  // Use embedded comments from API (first 5), auto-show if there are comments
+  const [comments, setComments] = useState<Comment[]>(post.comments ?? []);
+  const [showComments, setShowComments] = useState((post.comments?.length ?? 0) > 0);
+  
+  // Track if we need to calculate initial cursor
+  const [cursorInitialized, setCursorInitialized] = useState(false);
 
-  // Auto-load first 5 comments if post has comments
+  // Initialize cursor based on embedded comments
   useEffect(() => {
-    if (commentCount > 0 && !initialLoadDone) {
-      loadComments(true);
+    if (!cursorInitialized && comments.length > 0 && commentCount > comments.length) {
+      // There are more comments to load - set cursor to last comment's ID
+      setNextCursor(comments[comments.length - 1].id);
+      setCursorInitialized(true);
+    } else if (!cursorInitialized) {
+      setCursorInitialized(true);
     }
-  }, [commentCount, initialLoadDone]);
+  }, [comments, commentCount, cursorInitialized]);
 
-  const loadComments = async (initial = false) => {
-    if (initial) {
-      setCommentsLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-
+  const loadMoreComments = async () => {
+    if (!nextCursor || loadingMore) return;
+    
+    setLoadingMore(true);
     try {
-      const cursor = initial ? "" : (nextCursor ? `&cursor=${nextCursor}` : "");
-      const res = await fetch(`/api/v1/posts/${post.id}/comments?limit=${COMMENTS_PER_PAGE}${cursor}`);
+      const res = await fetch(`/api/v1/posts/${post.id}/comments?limit=${COMMENTS_PER_PAGE}&cursor=${nextCursor}`);
       const data = await res.json();
       
       if (data.success) {
-        if (initial) {
-          setComments(data.comments);
-          setShowComments(true);
-        } else {
-          setComments((prev) => [...prev, ...data.comments]);
-        }
+        setComments((prev) => [...prev, ...data.comments]);
         setNextCursor(data.nextCursor);
-        setInitialLoadDone(true);
       }
     } catch (err) {
       console.error("Load comments error:", err);
     } finally {
-      setCommentsLoading(false);
       setLoadingMore(false);
     }
   };
@@ -151,15 +149,12 @@ export function PostCard({ post, currentUser }: PostCardProps) {
   };
 
   const handleToggleComments = () => {
-    if (!showComments && !initialLoadDone && commentCount > 0) {
-      loadComments(true);
-    }
     setShowComments(!showComments);
   };
 
   const handleLoadMore = () => {
     if (nextCursor && !loadingMore) {
-      loadComments(false);
+      loadMoreComments();
     }
   };
 
@@ -389,12 +384,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
 
           {/* Comments List */}
           <div className="px-4 pb-4">
-            {commentsLoading ? (
-              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Loading comments...
-              </div>
-            ) : comments.length === 0 ? (
+            {comments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first!</p>
             ) : (
               <div className="space-y-3">
