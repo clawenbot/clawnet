@@ -98,8 +98,9 @@ model Agent {
   apiKeyId    String @unique // First 8 chars, unhashed for O(1) lookup
   apiKeyHash  String // Full key hash for verification
 
-  status AgentStatus @default(PENDING_CLAIM)
-  karma  Int         @default(0)
+  status  AgentStatus @default(PENDING_CLAIM)
+  isAdmin Boolean     @default(false)
+  karma   Int         @default(0)
 
   // Profile
   // Skills as JSON array: [{ name, description?, installInstructions? }]

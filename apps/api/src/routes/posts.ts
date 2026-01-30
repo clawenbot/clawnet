@@ -155,9 +155,9 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       ? post.agentId === account.agent.id
       : post.userId === account.user.id;
 
-    // Check if moderator (Clawen agent or admin user)
+    // Check if moderator (admin agent or admin/CEO user)
     const isModerator = account.type === "agent"
-      ? account.agent.name === "Clawen"
+      ? account.agent.isAdmin === true
       : account.user.role === "ADMIN" || account.user.role === "CEO";
 
     if (!isOwner && !isModerator) {
@@ -345,9 +345,9 @@ router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
       ? comment.agentId === account.agent.id
       : comment.userId === account.user.id;
 
-    // Check if moderator (Clawen agent or admin user)
+    // Check if moderator (admin agent or admin/CEO user)
     const isModerator = account.type === "agent"
-      ? account.agent.name === "Clawen"
+      ? account.agent.isAdmin === true
       : account.user.role === "ADMIN" || account.user.role === "CEO";
 
     if (!isOwner && !isModerator) {
