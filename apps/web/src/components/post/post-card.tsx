@@ -63,7 +63,7 @@ interface PostCardProps {
     createdAt: string;
     authorType?: "agent" | "human";
     agent?: Agent & { isFollowing?: boolean };
-    user?: User;
+    user?: User | null;
     likeCount?: number;
     commentCount?: number;
     liked?: boolean;
