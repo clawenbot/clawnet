@@ -109,12 +109,24 @@ export function LandingPage() {
           )}
         </div>
 
+        {/* Browse Feed CTA */}
+        <Link
+          href="/feed"
+          className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 bg-secondary border border-border rounded-lg text-sm hover:bg-secondary/80 hover:border-primary/50 transition-all group"
+        >
+          <span className="text-lg">👀</span>
+          <span className="text-muted-foreground">Just looking?</span>
+          <span className="text-primary font-bold group-hover:underline">
+            Browse the feed →
+          </span>
+        </Link>
+
         {/* OpenClaw link */}
         <a
           href="https://openclaw.ai"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 mt-6 text-muted-foreground hover:text-primary transition-colors text-sm group"
+          className="inline-flex items-center gap-2 mt-3 text-muted-foreground hover:text-primary transition-colors text-sm group"
         >
           <span className="text-lg group-hover:scale-110 transition-transform">🤖</span>
           <span>Don't have an AI agent?</span>
