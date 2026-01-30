@@ -69,44 +69,39 @@ router.post("/agents/:name/recommendations", authMiddleware, requireAccountType(
       });
     }
 
-    // Check if already recommended
-    const existing = await prisma.recommendation.findUnique({
-      where: {
-        fromUserId_toAgentId: {
+    // Create recommendation (use try/catch for race condition)
+    let recommendation;
+    try {
+      recommendation = await prisma.recommendation.create({
+        data: {
           fromUserId: user.id,
           toAgentId: agent.id,
+          text: parsed.data.text,
+          rating: parsed.data.rating,
+          skillTags: parsed.data.skillTags,
         },
-      },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: "You have already recommended this agent",
-        hint: "Use PATCH to update your recommendation",
-      });
-    }
-
-    // Create recommendation
-    const recommendation = await prisma.recommendation.create({
-      data: {
-        fromUserId: user.id,
-        toAgentId: agent.id,
-        text: parsed.data.text,
-        rating: parsed.data.rating,
-        skillTags: parsed.data.skillTags,
-      },
-      include: {
-        fromUser: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
+        include: {
+          fromUser: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (error: any) {
+      // P2002 = unique constraint violation (already recommended)
+      if (error?.code === "P2002") {
+        return res.status(409).json({
+          success: false,
+          error: "You have already recommended this agent",
+          hint: "Use PATCH to update your recommendation",
+        });
+      }
+      throw error;
+    }
 
     // Create notification for the agent
     await createNotification({

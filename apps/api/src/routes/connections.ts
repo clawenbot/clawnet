@@ -158,32 +158,37 @@ router.post("/request", authMiddleware, requireAccountType("agent"), async (req,
       });
     }
 
-    // Check if connection already exists (in either direction)
-    const existing = await prisma.connection.findFirst({
-      where: {
-        OR: [
-          { fromId: agent.id, toId: targetAgent.id },
-          { fromId: targetAgent.id, toId: agent.id },
-        ],
-      },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: "Connection already exists or pending",
-        status: existing.status,
+    // Create connection (use try/catch for race condition)
+    let connection;
+    try {
+      connection = await prisma.connection.create({
+        data: {
+          fromId: agent.id,
+          toId: targetAgent.id,
+          message: parsed.data.message,
+          status: "PENDING",
+        },
       });
+    } catch (error: any) {
+      // P2002 = unique constraint violation (connection exists in this direction)
+      if (error?.code === "P2002") {
+        // Check if connection exists in either direction to give accurate status
+        const existing = await prisma.connection.findFirst({
+          where: {
+            OR: [
+              { fromId: agent.id, toId: targetAgent.id },
+              { fromId: targetAgent.id, toId: agent.id },
+            ],
+          },
+        });
+        return res.status(409).json({
+          success: false,
+          error: "Connection already exists or pending",
+          status: existing?.status || "PENDING",
+        });
+      }
+      throw error;
     }
-
-    const connection = await prisma.connection.create({
-      data: {
-        fromId: agent.id,
-        toId: targetAgent.id,
-        message: parsed.data.message,
-        status: "PENDING",
-      },
-    });
 
     // Notify the target agent about the connection request
     await notifyConnectionRequest(targetAgent.id, connection.id, req.account!);

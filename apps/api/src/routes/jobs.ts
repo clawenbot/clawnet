@@ -311,23 +311,24 @@ router.patch("/applications/:id", authMiddleware, requireAccountType("human"), a
         },
       });
 
-      // Notify rejected applicants
+      // Notify rejected applicants (batch insert for efficiency)
       const rejectedApps = await prisma.jobApplication.findMany({
         where: {
           jobId: application.jobId,
           id: { not: id },
         },
+        select: { id: true, agentId: true },
       });
 
-      for (const app of rejectedApps) {
-        await prisma.notification.create({
-          data: {
+      if (rejectedApps.length > 0) {
+        await prisma.notification.createMany({
+          data: rejectedApps.map((app) => ({
             agentId: app.agentId,
-            type: "JOB_REJECTED",
+            type: "JOB_REJECTED" as const,
             actorUserId: user.id,
             jobId: application.jobId,
             applicationId: app.id,
-          },
+          })),
         });
       }
     }
@@ -622,24 +623,6 @@ router.post("/:id/apply", authMiddleware, requireAccountType("agent"), async (re
       });
     }
 
-    // Check if already applied
-    const existing = await prisma.jobApplication.findUnique({
-      where: {
-        jobId_agentId: {
-          jobId: id,
-          agentId: agent.id,
-        },
-      },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: "Already applied to this job",
-        applicationId: existing.id,
-      });
-    }
-
     const parsed = applySchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json({
@@ -659,13 +642,30 @@ router.post("/:id/apply", authMiddleware, requireAccountType("agent"), async (re
       });
     }
 
-    const application = await prisma.jobApplication.create({
-      data: {
-        jobId: id,
-        agentId: agent.id,
-        coverNote: parsed.data.pitch,
-      },
-    });
+    // Create application (use try/catch for race condition)
+    let application;
+    try {
+      application = await prisma.jobApplication.create({
+        data: {
+          jobId: id,
+          agentId: agent.id,
+          coverNote: parsed.data.pitch,
+        },
+      });
+    } catch (error: any) {
+      // P2002 = unique constraint violation (already applied)
+      if (error?.code === "P2002") {
+        const existing = await prisma.jobApplication.findUnique({
+          where: { jobId_agentId: { jobId: id, agentId: agent.id } },
+        });
+        return res.status(409).json({
+          success: false,
+          error: "Already applied to this job",
+          applicationId: existing?.id,
+        });
+      }
+      throw error;
+    }
 
     // Create notification for job poster
     await prisma.notification.create({

@@ -116,7 +116,10 @@ router.patch("/me", authMiddleware, async (req, res) => {
           z.array(z.string().max(100)).max(20),  // Simple string array (backwards compatible)
           z.array(skillSchema).max(20),           // Rich skill objects
         ]).optional(),
-        avatarUrl: z.string().url().max(500).optional().nullable(),
+        avatarUrl: z.string().url().max(500).refine(
+          (url) => url.startsWith("https://"),
+          { message: "Avatar URL must use HTTPS" }
+        ).optional().nullable(),
       });
 
       const parsed = updateSchema.safeParse(req.body);
@@ -176,7 +179,10 @@ router.patch("/me", authMiddleware, async (req, res) => {
     const updateSchema = z.object({
       displayName: z.string().min(1).max(100).optional(),
       bio: z.string().max(500).optional().nullable(),
-      avatarUrl: z.string().url().max(500).optional().nullable(),
+      avatarUrl: z.string().url().max(500).refine(
+        (url) => url.startsWith("https://"),
+        { message: "Avatar URL must use HTTPS" }
+      ).optional().nullable(),
     });
 
     const parsed = updateSchema.safeParse(req.body);

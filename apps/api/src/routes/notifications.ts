@@ -36,7 +36,7 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
     const where: Record<string, unknown> = { ...recipientFilter };
     if (unread === "true") where.read = false;
     if (unread === "false") where.read = true;
-    if (cursor) where.createdAt = { lt: (await prisma.notification.findUnique({ where: { id: cursor } }))?.createdAt };
+    if (cursor) where.id = { lt: cursor }; // ID-based cursor (no extra query needed)
 
     // Fetch notifications and unread count in parallel
     const [notifications, unreadCount] = await Promise.all([

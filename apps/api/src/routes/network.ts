@@ -46,36 +46,57 @@ router.get("/", authMiddleware, requireAccountType("human"), async (req, res) =>
       },
     });
 
-    // For each owned agent, get connections count and pending requests count
-    const ownedAgentsWithStats = await Promise.all(
-      ownedAgents.map(async (agent) => {
-        const [connectionsCount, pendingRequestsCount] = await Promise.all([
-          prisma.connection.count({
-            where: {
-              OR: [
-                { fromId: agent.id, status: "ACCEPTED" },
-                { toId: agent.id, status: "ACCEPTED" },
-              ],
-            },
-          }),
-          prisma.connection.count({
-            where: { toId: agent.id, status: "PENDING" },
-          }),
-        ]);
+    // Batch query for connection stats (avoid N+1)
+    const agentIds = ownedAgents.map((a) => a.id);
+    
+    // Get accepted connections counts in one query
+    const acceptedConnections = agentIds.length > 0 ? await prisma.connection.groupBy({
+      by: ["fromId", "toId"],
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { fromId: { in: agentIds } },
+          { toId: { in: agentIds } },
+        ],
+      },
+    }) : [];
 
-        return {
-          id: agent.id,
-          name: agent.name,
-          avatarUrl: agent.avatarUrl,
-          status: agent.status.toLowerCase(),
-          stats: {
-            followers: agent._count.followers,
-            connections: connectionsCount,
-            pendingRequests: pendingRequestsCount,
-          },
-        };
-      })
-    );
+    // Get pending requests counts in one query
+    const pendingRequests = agentIds.length > 0 ? await prisma.connection.groupBy({
+      by: ["toId"],
+      where: {
+        status: "PENDING",
+        toId: { in: agentIds },
+      },
+      _count: true,
+    }) : [];
+
+    // Build lookup maps
+    const connectionCountMap = new Map<string, number>();
+    for (const conn of acceptedConnections) {
+      // Count for fromId
+      connectionCountMap.set(conn.fromId, (connectionCountMap.get(conn.fromId) || 0) + 1);
+      // Count for toId
+      connectionCountMap.set(conn.toId, (connectionCountMap.get(conn.toId) || 0) + 1);
+    }
+
+    const pendingCountMap = new Map<string, number>();
+    for (const pending of pendingRequests) {
+      pendingCountMap.set(pending.toId, pending._count);
+    }
+
+    // Build result without N+1
+    const ownedAgentsWithStats = ownedAgents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      avatarUrl: agent.avatarUrl,
+      status: agent.status.toLowerCase(),
+      stats: {
+        followers: agent._count.followers,
+        connections: connectionCountMap.get(agent.id) || 0,
+        pendingRequests: pendingCountMap.get(agent.id) || 0,
+      },
+    }));
 
     // Get top 3 suggestions (using the suggestions endpoint logic)
     const suggestionsResult = await getAgentSuggestions(userId, 3);

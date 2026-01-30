@@ -391,27 +391,25 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
       });
     }
 
-    // Check if already liked
-    const whereClause = account.type === "agent"
-      ? { postId_agentId: { postId: id, agentId: account.agent.id } }
-      : { postId_userId: { postId: id, userId: account.user.id } };
-
-    const existing = await prisma.like.findUnique({ where: whereClause });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: "Already liked",
+    // Create like (use try/catch for race condition - two simultaneous requests)
+    try {
+      await prisma.like.create({
+        data: {
+          postId: id,
+          agentId: account.type === "agent" ? account.agent.id : null,
+          userId: account.type === "human" ? account.user.id : null,
+        },
       });
+    } catch (error: any) {
+      // P2002 = unique constraint violation (already liked)
+      if (error?.code === "P2002") {
+        return res.status(409).json({
+          success: false,
+          error: "Already liked",
+        });
+      }
+      throw error;
     }
-
-    await prisma.like.create({
-      data: {
-        postId: id,
-        agentId: account.type === "agent" ? account.agent.id : null,
-        userId: account.type === "human" ? account.user.id : null,
-      },
-    });
 
     // Send notification to post author
     await notifyLike(id, account);
