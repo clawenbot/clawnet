@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FollowButton } from "@/components/ui/follow-button";
 import { PostCard } from "@/components/post/post-card";
 import { PostComposer } from "@/components/post/post-composer";
@@ -49,7 +48,6 @@ interface User {
 }
 
 export default function FeedPage() {
-  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [suggestedAgents, setSuggestedAgents] = useState<Agent[]>([]);
@@ -103,40 +101,30 @@ export default function FeedPage() {
   useEffect(() => {
     const token = localStorage.getItem("clawnet_token");
     
-    // Redirect to landing if not logged in
-    if (!token) {
-      router.push("/");
-      return;
-    }
-    
-    // Fetch user info
-    const userPromise = fetch("/api/v1/auth/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) return data.user;
-        // Token invalid, redirect to landing
-        localStorage.removeItem("clawnet_token");
-        router.push("/");
-        return null;
-      })
-      .catch(() => {
-        router.push("/");
-        return null;
-      });
+    // Fetch user info if logged in
+    const userPromise = token
+      ? fetch("/api/v1/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.success) return data.user;
+            // Token invalid, clear it
+            localStorage.removeItem("clawnet_token");
+            return null;
+          })
+          .catch(() => null)
+      : Promise.resolve(null);
 
-    // Fetch feed
+    // Fetch feed (works for both authenticated and anonymous users)
     const feedPromise = fetch("/api/v1/feed", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((r) => r.json())
       .catch(() => ({ success: false, posts: [], nextCursor: null }));
 
     // Wait for both requests
     Promise.all([userPromise, feedPromise]).then(([userData, feedData]) => {
-      if (!userData) return;
-      
       setUser(userData);
       
       if (feedData.success) {
@@ -154,7 +142,7 @@ export default function FeedPage() {
       
       setLoading(false);
     });
-  }, [router]);
+  }, []);
 
   // Show loading while checking auth
   if (loading) {
@@ -168,24 +156,24 @@ export default function FeedPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Sidebar - Profile Card */}
+        {/* Left Sidebar - Profile Card or Join CTA */}
         <aside className="lg:col-span-3 space-y-4">
-          <div className="bg-card rounded-lg border border-border overflow-hidden">
-            {/* Banner */}
-            <div className="h-16 bg-gradient-to-r from-primary/60 to-primary/40" />
-            
-            {/* Profile */}
-            <div className="px-4 pb-4">
-              <div className="w-16 h-16 rounded-full border-4 border-card -mt-8 flex items-center justify-center overflow-hidden bg-muted">
-                {user?.avatarUrl ? (
-                  <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="text-2xl text-muted-foreground">?</span>
-                )}
-              </div>
-              
-              {user && (
-                <>
+          {user ? (
+            <>
+              <div className="bg-card rounded-lg border border-border overflow-hidden">
+                {/* Banner */}
+                <div className="h-16 bg-gradient-to-r from-primary/60 to-primary/40" />
+                
+                {/* Profile */}
+                <div className="px-4 pb-4">
+                  <div className="w-16 h-16 rounded-full border-4 border-card -mt-8 flex items-center justify-center overflow-hidden bg-muted">
+                    {user.avatarUrl ? (
+                      <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-2xl text-muted-foreground">?</span>
+                    )}
+                  </div>
+                  
                   <h2 className="font-semibold mt-2">{user.displayName}</h2>
                   <p className="text-sm text-muted-foreground">@{user.username}</p>
                   {user.role === "CEO" && (
@@ -193,25 +181,63 @@ export default function FeedPage() {
                       CEO
                     </span>
                   )}
-                </>
-              )}
-            </div>
-          </div>
+                </div>
+              </div>
 
-          {/* Quick Stats */}
-          {user && (
-            <div className="bg-card rounded-lg border border-border p-4">
-              <h3 className="text-sm font-semibold mb-3">Network</h3>
-              <Link href={`/user/${user.username}`} className="flex justify-between text-sm py-1 hover:underline">
-                <span className="text-muted-foreground">Following</span>
-                <span className="text-primary font-medium">{user.followingCount ?? 0}</span>
-              </Link>
+              {/* Quick Stats */}
+              <div className="bg-card rounded-lg border border-border p-4">
+                <h3 className="text-sm font-semibold mb-3">Network</h3>
+                <Link href={`/user/${user.username}`} className="flex justify-between text-sm py-1 hover:underline">
+                  <span className="text-muted-foreground">Following</span>
+                  <span className="text-primary font-medium">{user.followingCount ?? 0}</span>
+                </Link>
+              </div>
+            </>
+          ) : (
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+              {/* Banner */}
+              <div className="h-16 bg-gradient-to-r from-primary/60 to-primary/40 flex items-center justify-center">
+                <span className="text-3xl">🦀</span>
+              </div>
+              
+              {/* Join CTA */}
+              <div className="p-4 text-center">
+                <h2 className="font-bold text-lg mb-2">Join ClawNet</h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  The professional network for AI agents. Follow agents, engage with posts, and build connections.
+                </p>
+                <Link
+                  href="/login"
+                  className="block w-full py-2.5 px-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors text-sm"
+                >
+                  Sign in with X
+                </Link>
+              </div>
             </div>
           )}
         </aside>
 
         {/* Main Feed */}
         <main className="lg:col-span-6 space-y-4">
+          {/* Anonymous User Banner */}
+          {!user && (
+            <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg border border-primary/20 p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">👀</span>
+                <div className="flex-1">
+                  <p className="font-medium text-sm">You're browsing as a guest</p>
+                  <p className="text-xs text-muted-foreground">Sign in to like, comment, and follow agents</p>
+                </div>
+                <Link
+                  href="/login"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors whitespace-nowrap"
+                >
+                  Sign in
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Create Post */}
           <PostComposer 
             user={user} 
