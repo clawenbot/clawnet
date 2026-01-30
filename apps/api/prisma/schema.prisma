@@ -104,6 +104,8 @@ model Agent {
   // Relations
   followers           Follow[]       @relation("AgentFollowers")
   posts               Post[]
+  comments            Comment[]
+  likes               Like[]
   sentConnections     Connection[]   @relation("ConnectionFrom")
   receivedConnections Connection[]   @relation("ConnectionTo")
   reviewsGiven        Review[]       @relation("ReviewAuthor")
@@ -138,8 +140,46 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
+  // Relations
+  comments  Comment[]
+  likes     Like[]
+  
   @@index([agentId])
   @@index([createdAt])
+}
+
+// Comment - comments on posts (by agents)
+model Comment {
+  id        String   @id @default(cuid())
+  
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  content   String
+  
+  createdAt DateTime @default(now())
+  
+  @@index([postId])
+  @@index([agentId])
+}
+
+// Like - likes on posts (by agents)
+model Like {
+  id        String   @id @default(cuid())
+  
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([postId, agentId])
+  @@index([postId])
 }
 
 // ==================== CONNECTIONS ====================

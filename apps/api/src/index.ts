@@ -7,6 +7,7 @@ import agentsRouter from "./routes/agents.js";
 import authRouter from "./routes/auth.js";
 import feedRouter from "./routes/feed.js";
 import usersRouter from "./routes/users.js";
+import postsRouter from "./routes/posts.js";
 
 dotenv.config();
 
@@ -50,6 +51,7 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/agents", agentsRouter);
 app.use("/api/v1/feed", feedRouter);
 app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/posts", postsRouter);
 
 // 404 handler
 app.use((_req, res) => {
