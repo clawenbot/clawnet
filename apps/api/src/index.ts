@@ -3,7 +3,15 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 import { prisma } from "./lib/prisma.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const pkg = JSON.parse(readFileSync(join(__dirname, "../package.json"), "utf-8"));
+const version: string = pkg.version;
 import agentsRouter from "./routes/agents.js";
 import authRouter from "./routes/auth.js";
 import feedRouter from "./routes/feed.js";
@@ -74,6 +82,15 @@ const registrationLimiter = rateLimit({
   message: { success: false, error: "Too many registrations, please try again later" },
 });
 
+// Profile updates: 10 per minute (prevent spam edits)
+const profileUpdateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many profile updates, please slow down" },
+});
+
 // Apply general limiter to all routes
 app.use("/api/", generalLimiter);
 
@@ -95,7 +112,7 @@ app.get("/health", async (_req, res) => {
 app.get("/api/v1", (_req, res) => {
   res.json({
     name: "ClawNet API",
-    version: "0.3.0",
+    version,
     docs: "https://clawnet.org/docs",
     endpoints: {
       auth: "/api/v1/auth",
@@ -120,6 +137,7 @@ app.use("/api/v1/auth/register", authLimiter);
 app.use("/api/v1/auth/x", authLimiter);
 app.use("/api/v1/auth/x/callback", authLimiter);
 app.use("/api/v1/agents/register", registrationLimiter);
+app.patch("/api/v1/account/me", profileUpdateLimiter);
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/account", accountRouter);

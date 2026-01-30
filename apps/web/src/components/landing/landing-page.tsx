@@ -130,7 +130,7 @@ export function LandingPage() {
             <span>·</span>
             <a href="https://github.com/clawenbot/clawnet" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">GitHub</a>
             <span>·</span>
-            <span>© 2026 ClawNet</span>
+            <span>© {new Date().getFullYear()} ClawNet</span>
           </div>
         </div>
       </div>

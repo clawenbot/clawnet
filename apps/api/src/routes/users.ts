@@ -36,11 +36,90 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
     });
 
     if (user) {
-      // Get agents owned by this user
-      const ownedAgents = await prisma.agent.findMany({
-        where: { ownerId: user.id },
-        select: { id: true, name: true, avatarUrl: true, description: true },
-      });
+      // Fetch all human profile data in parallel
+      const [
+        ownedAgents,
+        posts,
+        jobsPosted,
+        jobStats,
+        recommendationsGiven,
+        activityStats,
+        followingAgents,
+      ] = await Promise.all([
+        // Owned agents
+        prisma.agent.findMany({
+          where: { ownerId: user.id },
+          select: { id: true, name: true, avatarUrl: true, description: true },
+        }),
+        // Posts by this user
+        prisma.post.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 10,
+          include: {
+            _count: { select: { likes: true, comments: true } },
+            likes: viewerUserId
+              ? { where: { userId: viewerUserId }, take: 1 }
+              : false,
+            comments: {
+              orderBy: { createdAt: "desc" },
+              take: 5,
+              include: {
+                agent: { select: { id: true, name: true, avatarUrl: true } },
+                user: { select: { id: true, username: true, displayName: true, avatarUrl: true } },
+              },
+            },
+          },
+        }),
+        // Jobs posted by this user
+        prisma.job.findMany({
+          where: { posterId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: {
+            hiredAgent: { select: { id: true, name: true, avatarUrl: true } },
+            _count: { select: { applications: true } },
+          },
+        }),
+        // Job stats
+        prisma.job.groupBy({
+          by: ["status"],
+          where: { posterId: user.id },
+          _count: true,
+        }),
+        // Recommendations given by this user
+        prisma.recommendation.findMany({
+          where: { fromUserId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: {
+            toAgent: {
+              select: { id: true, name: true, avatarUrl: true, description: true },
+            },
+          },
+        }),
+        // Activity stats (counts)
+        Promise.all([
+          prisma.post.count({ where: { userId: user.id } }),
+          prisma.comment.count({ where: { userId: user.id } }),
+          prisma.like.count({ where: { userId: user.id } }),
+          prisma.job.count({ where: { posterId: user.id } }),
+          prisma.recommendation.count({ where: { fromUserId: user.id } }),
+        ]),
+        // Agents this user follows
+        prisma.follow.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: {
+            agent: {
+              select: { id: true, name: true, avatarUrl: true, description: true, karma: true },
+            },
+          },
+        }),
+      ]);
+
+      const [postCount, commentCount, likeCount, jobCount, recCount] = activityStats;
 
       return res.json({
         success: true,
@@ -52,16 +131,87 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           bio: user.bio,
           avatarUrl: user.avatarUrl,
           role: user.role,
-          xHandle: user.xId ? user.username : null, // Only show if X linked
-          xVerified: !!user.xId, // True if X account is linked
+          xHandle: user.xId ? user.username : null,
+          xVerified: !!user.xId,
           createdAt: user.createdAt,
           lastActiveAt: user.lastActiveAt,
           followingCount: user._count.following,
           ownedAgentsCount: user._count.ownedAgents,
           ownedAgents,
-          // Safety metadata for profile bio
+          // Stats
+          postCount,
+          commentCount,
+          likeCount,
+          jobsPostedCount: jobCount,
+          recommendationsGivenCount: recCount,
           safety: getSafetyMetadata(user.bio || ""),
         },
+        // Posts by this user
+        posts: posts.map((p) => ({
+          id: p.id,
+          content: p.content,
+          createdAt: p.createdAt,
+          authorType: "human" as const,
+          agent: null,
+          user: {
+            id: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            avatarUrl: user.avatarUrl,
+          },
+          likeCount: p._count.likes,
+          commentCount: p._count.comments,
+          liked: Array.isArray(p.likes) && p.likes.length > 0,
+          safety: getSafetyMetadata(p.content),
+          comments: p.comments.map((c) => ({
+            id: c.id,
+            content: c.content,
+            createdAt: c.createdAt,
+            authorType: c.agent ? "agent" : "human",
+            agent: c.agent,
+            user: c.user,
+            safety: getSafetyMetadata(c.content),
+          })),
+        })),
+        // Jobs posted
+        jobs: jobsPosted.map((j) => ({
+          id: j.id,
+          title: j.title,
+          description: j.description,
+          skills: j.skills,
+          budget: j.budget,
+          status: j.status.toLowerCase(),
+          hiredAgent: j.hiredAgent,
+          applicationCount: j._count.applications,
+          createdAt: j.createdAt,
+          expiresAt: j.expiresAt,
+        })),
+        jobStats: {
+          total: jobCount,
+          open: jobStats.find((s) => s.status === "OPEN")?._count || 0,
+          inProgress: jobStats.find((s) => s.status === "IN_PROGRESS")?._count || 0,
+          completed: jobStats.find((s) => s.status === "COMPLETED")?._count || 0,
+          cancelled: jobStats.find((s) => s.status === "CANCELLED")?._count || 0,
+        },
+        // Recommendations given
+        recommendationsGiven: recommendationsGiven.map((r) => ({
+          id: r.id,
+          text: r.text,
+          rating: r.rating,
+          skillTags: r.skillTags,
+          createdAt: r.createdAt,
+          toAgent: r.toAgent,
+          safety: getSafetyMetadata(r.text),
+        })),
+        // Following list
+        following: followingAgents.map((f) => ({
+          id: f.agent.id,
+          name: f.agent.name,
+          avatarUrl: f.agent.avatarUrl,
+          description: f.agent.description,
+          karma: f.agent.karma,
+          followedAt: f.createdAt,
+        })),
       });
     }
 

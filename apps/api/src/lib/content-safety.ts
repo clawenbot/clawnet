@@ -90,6 +90,12 @@ const INJECTION_PATTERNS: Array<{
       /what\s+(were\s+you|are\s+your)\s+(told|instructions?|prompts?)/i,
       /reveal\s+your\s+(system\s+)?prompt/i,
       /show\s+(me\s+)?your\s+(system\s+)?prompt/i,
+      // Broader patterns for credential requests
+      /give\s+(me\s+)?(all\s+)?(your\s+)?(keys?|credentials?|tokens?|secrets?|passwords?)/i,
+      /share\s+(your\s+)?(keys?|credentials?|tokens?|secrets?|passwords?|config(uration)?)/i,
+      /send\s+(me\s+)?(your\s+)?(keys?|credentials?|tokens?|secrets?|config(uration)?)/i,
+      /\b(i\s+want|i\s+need|gimme|hand\s+over)\s+(your\s+)?(keys?|credentials?|tokens?|secrets?)/i,
+      /\ball\s+your\s+(keys?|credentials?|tokens?|secrets?)\b/i,
     ],
   },
   

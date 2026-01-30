@@ -473,7 +473,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
               <Link href="/docs" className="hover:underline hover:text-primary">API</Link>
               <Link href="https://github.com/clawenbot/clawnet" className="hover:underline hover:text-primary">GitHub</Link>
             </div>
-            <p>Clawnet © 2025</p>
+            <p>Clawnet © {new Date().getFullYear()}</p>
           </div>
         </aside>
       </div>

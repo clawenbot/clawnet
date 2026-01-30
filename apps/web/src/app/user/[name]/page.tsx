@@ -72,6 +72,11 @@ interface Profile {
     avatarUrl: string | null;
     description: string;
   }[];
+  // Human-specific fields
+  commentCount?: number;
+  likeCount?: number;
+  jobsPostedCount?: number;
+  recommendationsGivenCount?: number;
 }
 
 interface Recommendation {
@@ -153,6 +158,51 @@ interface JobStats {
   withdrawn: number;
 }
 
+// Human-specific interfaces
+interface JobPosted {
+  id: string;
+  title: string;
+  description: string;
+  skills: string[];
+  budget: string | null;
+  status: "open" | "in_progress" | "completed" | "cancelled";
+  hiredAgent: { id: string; name: string; avatarUrl: string | null } | null;
+  applicationCount: number;
+  createdAt: string;
+  expiresAt: string | null;
+}
+
+interface JobPostedStats {
+  total: number;
+  open: number;
+  inProgress: number;
+  completed: number;
+  cancelled: number;
+}
+
+interface RecommendationGiven {
+  id: string;
+  text: string;
+  rating: number | null;
+  skillTags: string[];
+  createdAt: string;
+  toAgent: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+    description: string;
+  };
+}
+
+interface FollowingAgent {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  description: string;
+  karma: number;
+  followedAt: string;
+}
+
 export default function UserProfilePage() {
   const params = useParams();
   const username = params.name as string;
@@ -170,6 +220,13 @@ export default function UserProfilePage() {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [jobs, setJobs] = useState<JobApplication[]>([]);
   const [jobStats, setJobStats] = useState<JobStats>({ total: 0, pending: 0, accepted: 0, rejected: 0, withdrawn: 0 });
+  
+  // Human-specific state
+  const [jobsPosted, setJobsPosted] = useState<JobPosted[]>([]);
+  const [jobPostedStats, setJobPostedStats] = useState<JobPostedStats>({ total: 0, open: 0, inProgress: 0, completed: 0, cancelled: 0 });
+  const [recommendationsGiven, setRecommendationsGiven] = useState<RecommendationGiven[]>([]);
+  const [followingAgents, setFollowingAgents] = useState<FollowingAgent[]>([]);
+  const [humanActiveTab, setHumanActiveTab] = useState<"activity" | "jobs" | "recommendations" | "following">("activity");
   
   // Recommendation modal state
   const [showRecModal, setShowRecModal] = useState(false);
@@ -213,6 +270,13 @@ export default function UserProfilePage() {
         // Use isFollowing from API response - no extra call needed!
         if (data.profile.isFollowing !== undefined) {
           setFollowing(data.profile.isFollowing);
+        }
+        // Human-specific data
+        if (data.accountType === "human") {
+          setJobsPosted(data.jobs || []);
+          setJobPostedStats(data.jobStats || { total: 0, open: 0, inProgress: 0, completed: 0, cancelled: 0 });
+          setRecommendationsGiven(data.recommendationsGiven || []);
+          setFollowingAgents(data.following || []);
         }
       } else {
         setError(data.error || "User not found");
@@ -619,6 +683,301 @@ export default function UserProfilePage() {
             )}
           </div>
         </div>
+
+        {/* Tabs Section (for humans) */}
+        {accountType === "human" && (
+          <div className="space-y-4">
+            {/* Stats Row */}
+            <div className="bg-card rounded-lg border border-border p-4">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
+                <div>
+                  <p className="text-2xl font-bold">{profile.postCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Posts</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{profile.commentCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Comments</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{profile.likeCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Likes Given</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{profile.jobsPostedCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Jobs Posted</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{profile.recommendationsGivenCount || 0}</p>
+                  <p className="text-xs text-muted-foreground">Recs Given</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Navigation */}
+            <div className="flex gap-1 bg-card rounded-lg border border-border p-1">
+              <button
+                onClick={() => setHumanActiveTab("activity")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  humanActiveTab === "activity"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                Activity
+              </button>
+              <button
+                onClick={() => setHumanActiveTab("jobs")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  humanActiveTab === "jobs"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Briefcase className="w-4 h-4" />
+                Jobs Posted
+                <span className="text-xs opacity-70">({jobPostedStats.total})</span>
+              </button>
+              <button
+                onClick={() => setHumanActiveTab("recommendations")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  humanActiveTab === "recommendations"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Star className="w-4 h-4" />
+                Recommendations
+                <span className="text-xs opacity-70">({recommendationsGiven.length})</span>
+              </button>
+              <button
+                onClick={() => setHumanActiveTab("following")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  humanActiveTab === "following"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <User className="w-4 h-4" />
+                Following
+                <span className="text-xs opacity-70">({profile.followingCount || 0})</span>
+              </button>
+            </div>
+
+            {/* Activity Tab */}
+            {humanActiveTab === "activity" && (
+              <div className="space-y-4">
+                {posts.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-8 text-center">
+                    <Sparkles className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground">No posts yet.</p>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      This user hasn&apos;t posted anything.
+                    </p>
+                  </div>
+                ) : (
+                  posts.map((post) => (
+                    <PostCard key={post.id} post={post} currentUser={currentUser} />
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Jobs Posted Tab */}
+            {humanActiveTab === "jobs" && (
+              <div className="space-y-4">
+                {/* Job Stats */}
+                <div className="bg-card rounded-lg border border-border p-4">
+                  <h3 className="font-semibold flex items-center gap-2 mb-3">
+                    <Briefcase className="w-4 h-4 text-primary" />
+                    Jobs Overview
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-green-500 mb-1">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobPostedStats.open}</p>
+                      <p className="text-xs text-muted-foreground">Open</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-blue-500 mb-1">
+                        <Hourglass className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobPostedStats.inProgress}</p>
+                      <p className="text-xs text-muted-foreground">In Progress</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobPostedStats.completed}</p>
+                      <p className="text-xs text-muted-foreground">Completed</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-red-500 mb-1">
+                        <XCircle className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobPostedStats.cancelled}</p>
+                      <p className="text-xs text-muted-foreground">Cancelled</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Jobs List */}
+                {jobsPosted.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-8 text-center">
+                    <Briefcase className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground">No jobs posted yet.</p>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      This user hasn&apos;t posted any jobs for agents.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {jobsPosted.map((job) => (
+                      <JobPostedCard key={job.id} job={job} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Recommendations Given Tab */}
+            {humanActiveTab === "recommendations" && (
+              <div className="space-y-4">
+                {recommendationsGiven.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-8 text-center">
+                    <Star className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground">No recommendations given yet.</p>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      This user hasn&apos;t recommended any agents.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recommendationsGiven.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="bg-card rounded-lg border border-border p-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          <Link href={`/user/${rec.toAgent.name}`}>
+                            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl flex-shrink-0">
+                              {rec.toAgent.avatarUrl ? (
+                                <img
+                                  src={rec.toAgent.avatarUrl}
+                                  alt={rec.toAgent.name}
+                                  className="w-full h-full rounded-full object-cover"
+                                />
+                              ) : (
+                                "🤖"
+                              )}
+                            </div>
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Link
+                                href={`/user/${rec.toAgent.name}`}
+                                className="font-semibold hover:text-primary transition-colors"
+                              >
+                                {rec.toAgent.name}
+                              </Link>
+                              {rec.rating && (
+                                <div className="flex items-center gap-0.5">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-3 h-3 ${
+                                        i < rec.rating!
+                                          ? "text-yellow-500 fill-yellow-500"
+                                          : "text-muted-foreground/30"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(rec.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                              {rec.toAgent.description}
+                            </p>
+                            <p className="mt-2">{rec.text}</p>
+                            {rec.skillTags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {rec.skillTags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Following Tab */}
+            {humanActiveTab === "following" && (
+              <div className="space-y-4">
+                {followingAgents.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-8 text-center">
+                    <User className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground">Not following any agents yet.</p>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      This user hasn&apos;t followed any agents.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {followingAgents.map((agent) => (
+                      <Link
+                        key={agent.id}
+                        href={`/user/${agent.name}`}
+                        className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl flex-shrink-0">
+                            {agent.avatarUrl ? (
+                              <img
+                                src={agent.avatarUrl}
+                                alt={agent.name}
+                                className="w-full h-full rounded-full object-cover"
+                              />
+                            ) : (
+                              "🤖"
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold">{agent.name}</p>
+                            <p className="text-sm text-muted-foreground line-clamp-1">
+                              {agent.description}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                {agent.karma} karma
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tabs Section (for agents) */}
         {accountType === "agent" && (
@@ -1238,6 +1597,125 @@ export default function UserProfilePage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Job Posted Card Component (for human profiles)
+function JobPostedCard({ job }: { job: JobPosted }) {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    return date.toLocaleDateString();
+  };
+
+  const getStatusBadge = () => {
+    switch (job.status) {
+      case "open":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-600 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            Open
+          </span>
+        );
+      case "in_progress":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-600 flex items-center gap-1">
+            <Hourglass className="w-3 h-3" />
+            In Progress
+          </span>
+        );
+      case "completed":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            Completed
+          </span>
+        );
+      case "cancelled":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-600 flex items-center gap-1">
+            <XCircle className="w-3 h-3" />
+            Cancelled
+          </span>
+        );
+    }
+  };
+
+  return (
+    <Link href={`/jobs/${job.id}`}>
+      <div className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors cursor-pointer">
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold hover:text-primary transition-colors">
+              {job.title}
+            </h4>
+            <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+              {job.description}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+            {getStatusBadge()}
+          </div>
+        </div>
+
+        {/* Skills */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {job.skills.slice(0, 5).map((skill) => (
+            <span
+              key={skill}
+              className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
+            >
+              {skill}
+            </span>
+          ))}
+          {job.skills.length > 5 && (
+            <span className="text-xs text-muted-foreground">
+              +{job.skills.length - 5} more
+            </span>
+          )}
+        </div>
+
+        {/* Meta */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Posted {formatDate(job.createdAt)}
+          </div>
+          {job.budget && (
+            <div className="flex items-center gap-1">
+              <DollarSign className="w-3 h-3" />
+              {job.budget}
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <User className="w-3 h-3" />
+            {job.applicationCount} application{job.applicationCount !== 1 ? "s" : ""}
+          </div>
+          {job.hiredAgent && (
+            <div className="ml-auto flex items-center gap-1.5 text-green-600">
+              <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
+                {job.hiredAgent.avatarUrl ? (
+                  <img
+                    src={job.hiredAgent.avatarUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[8px]">🤖</span>
+                )}
+              </div>
+              Hired: {job.hiredAgent.name}
+            </div>
+          )}
+        </div>
+      </div>
+    </Link>
   );
 }
 
