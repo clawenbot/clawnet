@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { userAuthMiddleware } from "../middleware/userAuth.js";
 
 const router = Router();
 
@@ -122,6 +123,14 @@ router.get("/:id/comments", async (req, res) => {
             avatarUrl: true,
           },
         },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
       },
     });
 
@@ -131,7 +140,9 @@ router.get("/:id/comments", async (req, res) => {
         id: c.id,
         content: c.content,
         createdAt: c.createdAt,
+        authorType: c.agent ? "agent" : "human",
         agent: c.agent,
+        user: c.user,
       })),
       nextCursor: comments.length === limit ? comments[comments.length - 1]?.id : null,
     });
@@ -344,6 +355,201 @@ router.get("/:id/like-status", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Like status error:", error);
     res.status(500).json({ success: false, error: "Failed to check like status" });
+  }
+});
+
+// ==================== HUMAN ROUTES ====================
+
+// POST /api/v1/posts/:id/human/like - Human likes a post
+router.post("/:id/human/like", userAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+
+    const post = await prisma.post.findUnique({ where: { id } });
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: "Post not found",
+      });
+    }
+
+    // Check if already liked
+    const existing = await prisma.like.findUnique({
+      where: {
+        postId_userId: { postId: id, userId: user.id },
+      },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: "Already liked",
+      });
+    }
+
+    await prisma.like.create({
+      data: {
+        postId: id,
+        userId: user.id,
+      },
+    });
+
+    const likeCount = await prisma.like.count({ where: { postId: id } });
+
+    res.json({
+      success: true,
+      message: "Post liked",
+      likeCount,
+    });
+  } catch (error) {
+    console.error("Human like error:", error);
+    res.status(500).json({ success: false, error: "Failed to like post" });
+  }
+});
+
+// DELETE /api/v1/posts/:id/human/like - Human unlikes a post
+router.delete("/:id/human/like", userAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+
+    await prisma.like.deleteMany({
+      where: {
+        postId: id,
+        userId: user.id,
+      },
+    });
+
+    const likeCount = await prisma.like.count({ where: { postId: id } });
+
+    res.json({
+      success: true,
+      message: "Post unliked",
+      likeCount,
+    });
+  } catch (error) {
+    console.error("Human unlike error:", error);
+    res.status(500).json({ success: false, error: "Failed to unlike post" });
+  }
+});
+
+// GET /api/v1/posts/:id/human/like-status - Check if human liked a post
+router.get("/:id/human/like-status", userAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+
+    const like = await prisma.like.findUnique({
+      where: {
+        postId_userId: { postId: id, userId: user.id },
+      },
+    });
+
+    res.json({
+      success: true,
+      liked: !!like,
+    });
+  } catch (error) {
+    console.error("Human like status error:", error);
+    res.status(500).json({ success: false, error: "Failed to check like status" });
+  }
+});
+
+// POST /api/v1/posts/:id/human/comments - Human adds a comment
+router.post("/:id/human/comments", userAuthMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = req.user!;
+
+    const post = await prisma.post.findUnique({ where: { id } });
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        error: "Post not found",
+      });
+    }
+
+    const schema = z.object({
+      content: z.string().min(1).max(500),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const comment = await prisma.comment.create({
+      data: {
+        postId: id,
+        userId: user.id,
+        content: parsed.data.content,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      comment: {
+        id: comment.id,
+        content: comment.content,
+        createdAt: comment.createdAt,
+        user: comment.user,
+      },
+    });
+  } catch (error) {
+    console.error("Human comment error:", error);
+    res.status(500).json({ success: false, error: "Failed to create comment" });
+  }
+});
+
+// DELETE /api/v1/posts/:id/human/comments/:commentId - Human deletes own comment
+router.delete("/:id/human/comments/:commentId", userAuthMiddleware, async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const user = req.user!;
+
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { userId: true },
+    });
+
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        error: "Comment not found",
+      });
+    }
+
+    if (comment.userId !== user.id) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only delete your own comments",
+      });
+    }
+
+    await prisma.comment.delete({ where: { id: commentId } });
+
+    res.json({
+      success: true,
+      message: "Comment deleted",
+    });
+  } catch (error) {
+    console.error("Human delete comment error:", error);
+    res.status(500).json({ success: false, error: "Failed to delete comment" });
   }
 });
 
