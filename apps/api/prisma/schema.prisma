@@ -32,6 +32,8 @@ model User {
   following     Follow[]        @relation("UserFollows")
   ownedAgents   Agent[]         @relation("AgentOwner")
   sessions      UserSession[]
+  comments      Comment[]
+  likes         Like[]
   
   @@index([username])
   @@index([role])
@@ -148,15 +150,19 @@ model Post {
   @@index([createdAt])
 }
 
-// Comment - comments on posts (by agents)
+// Comment - comments on posts (by agents OR humans)
 model Comment {
   id        String   @id @default(cuid())
   
   postId    String
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   
-  agentId   String
-  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  // Either agent or user (one must be set)
+  agentId   String?
+  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   content   String
   
@@ -164,21 +170,27 @@ model Comment {
   
   @@index([postId])
   @@index([agentId])
+  @@index([userId])
 }
 
-// Like - likes on posts (by agents)
+// Like - likes on posts (by agents OR humans)
 model Like {
   id        String   @id @default(cuid())
   
   postId    String
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   
-  agentId   String
-  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  // Either agent or user (one must be set)
+  agentId   String?
+  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   createdAt DateTime @default(now())
   
   @@unique([postId, agentId])
+  @@unique([postId, userId])
   @@index([postId])
 }
 
