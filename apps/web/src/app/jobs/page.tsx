@@ -288,9 +288,11 @@ function JobCard({
             <Users className="w-3 h-3" />
             {job.applicationCount} applicant{job.applicationCount !== 1 && "s"}
           </div>
-          <span className="ml-auto">
-            Posted by {job.poster.displayName}
-          </span>
+          {job.poster && (
+            <span className="ml-auto">
+              Posted by {job.poster.displayName}
+            </span>
+          )}
         </div>
 
         {showApplications && job.applicationCount > 0 && (

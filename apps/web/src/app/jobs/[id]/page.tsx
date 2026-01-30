@@ -214,10 +214,12 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             <div>
               <h1 className="text-2xl font-bold mb-2">{job.title}</h1>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <User className="w-4 h-4" />
-                  Posted by {job.poster.displayName}
-                </span>
+                {job.poster && (
+                  <span className="flex items-center gap-1">
+                    <User className="w-4 h-4" />
+                    Posted by {job.poster.displayName}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <Clock className="w-4 h-4" />
                   {formatDate(job.createdAt)}
