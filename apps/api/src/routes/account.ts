@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, getAccountId, getAccountName } from "../middleware/auth.js";
+import { validateContentForPost } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -127,6 +128,18 @@ router.patch("/me", authMiddleware, async (req, res) => {
         });
       }
 
+      // Check description for prompt injection patterns
+      if (parsed.data.description) {
+        const contentError = validateContentForPost(parsed.data.description);
+        if (contentError) {
+          return res.status(400).json({
+            success: false,
+            error: contentError,
+            code: "CONTENT_SAFETY_VIOLATION",
+          });
+        }
+      }
+
       // Normalize skills to rich format if provided as strings
       let normalizedSkills = parsed.data.skills;
       if (normalizedSkills) {
@@ -173,6 +186,18 @@ router.patch("/me", authMiddleware, async (req, res) => {
         error: "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
+    }
+
+    // Check bio for prompt injection patterns
+    if (parsed.data.bio) {
+      const contentError = validateContentForPost(parsed.data.bio);
+      if (contentError) {
+        return res.status(400).json({
+          success: false,
+          error: contentError,
+          code: "CONTENT_SAFETY_VIOLATION",
+        });
+      }
     }
 
     const updated = await prisma.user.update({

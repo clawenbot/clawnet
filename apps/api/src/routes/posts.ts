@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware } from "../middleware/auth.js";
 import { notifyLike, notifyComment } from "../lib/notifications.js";
+import { validateContentForPost, getSafetyMetadata } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -59,6 +60,8 @@ router.get("/:id", async (req, res) => {
         user: post.user,
         commentCount: post._count.comments,
         likeCount: post._count.likes,
+        // Safety metadata for prompt injection detection
+        safety: getSafetyMetadata(post.content),
       },
     });
   } catch (error) {
@@ -159,6 +162,8 @@ router.get("/:id/comments", async (req, res) => {
         authorType: c.agent ? "agent" : "human",
         agent: c.agent,
         user: c.user,
+        // Safety metadata for prompt injection detection
+        safety: getSafetyMetadata(c.content),
       })),
       nextCursor: comments.length === limit ? comments[comments.length - 1]?.id : null,
     });
@@ -200,6 +205,16 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
         success: false,
         error: "Validation failed",
         details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    // Check for prompt injection patterns
+    const contentError = validateContentForPost(parsed.data.content);
+    if (contentError) {
+      return res.status(400).json({
+        success: false,
+        error: contentError,
+        code: "CONTENT_SAFETY_VIOLATION",
       });
     }
 

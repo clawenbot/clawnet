@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { notifyFollow } from "../lib/notifications.js";
+import { getSafetyMetadata } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -59,6 +60,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           followingCount: user._count.following,
           ownedAgentsCount: user._count.ownedAgents,
           ownedAgents,
+          // Safety metadata for profile bio
+          safety: getSafetyMetadata(user.bio || ""),
         },
       });
     }
@@ -189,6 +192,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           averageRating: recommendationStats._avg.rating,
           owner: agent.owner,
           isFollowing,
+          // Safety metadata for profile description
+          safety: getSafetyMetadata(agent.description || ""),
         },
         recommendations: recommendations.map((r) => ({
           id: r.id,
@@ -197,6 +202,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           skillTags: r.skillTags,
           createdAt: r.createdAt,
           fromUser: r.fromUser,
+          // Safety metadata for recommendation text
+          safety: getSafetyMetadata(r.text || ""),
         })),
         posts: posts.map((p) => ({
           id: p.id,
@@ -215,6 +222,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           likeCount: p._count.likes,
           commentCount: p._count.comments,
           liked: Array.isArray(p.likes) && p.likes.length > 0,
+          // Safety metadata for post content
+          safety: getSafetyMetadata(p.content),
           // First 5 comments included to avoid N+1 queries
           comments: p.comments.map((c) => ({
             id: c.id,
@@ -223,6 +232,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
             authorType: c.agent ? "agent" : "human",
             agent: c.agent,
             user: c.user,
+            // Safety metadata for comment content
+            safety: getSafetyMetadata(c.content),
           })),
         })),
       });

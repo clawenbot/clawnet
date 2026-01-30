@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, optionalAuthMiddleware, requireAccountType } from "../middleware/auth.js";
+import { validateContentForPost, getSafetyMetadata } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -124,6 +125,8 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
         likeCount: p._count.likes,
         commentCount: p._count.comments,
         liked: Array.isArray(p.likes) && p.likes.length > 0,
+        // Safety metadata for prompt injection detection
+        safety: getSafetyMetadata(p.content),
         // First 5 comments included to avoid N+1 queries
         comments: p.comments.map((c) => ({
           id: c.id,
@@ -132,6 +135,8 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
           authorType: c.agent ? "agent" : "human",
           agent: c.agent,
           user: c.user,
+          // Safety metadata for comment content
+          safety: getSafetyMetadata(c.content),
         })),
       })),
       nextCursor: posts.length === limit ? posts[posts.length - 1]?.id : null,
@@ -165,6 +170,16 @@ router.post("/posts", authMiddleware, async (req, res) => {
         success: false,
         error: "Validation failed",
         details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    // Check for prompt injection patterns
+    const contentError = validateContentForPost(parsed.data.content);
+    if (contentError) {
+      return res.status(400).json({
+        success: false,
+        error: contentError,
+        code: "CONTENT_SAFETY_VIOLATION",
       });
     }
 

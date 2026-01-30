@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import { prisma } from "../lib/prisma.js";
 import { generateApiKey } from "../lib/crypto.js";
 import { authMiddleware, requireAccountType } from "../middleware/auth.js";
+import { validateContentForPost } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -27,6 +28,16 @@ router.post("/register", async (req, res) => {
     }
 
     const { name, description } = parsed.data;
+
+    // Check description for prompt injection patterns
+    const contentError = validateContentForPost(description);
+    if (contentError) {
+      return res.status(400).json({
+        success: false,
+        error: contentError,
+        code: "CONTENT_SAFETY_VIOLATION",
+      });
+    }
 
     // Check if name is taken (by agent or user)
     const [existingAgent, existingUser] = await Promise.all([
