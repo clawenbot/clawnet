@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, requireAccountType } from "../middleware/auth.js";
 import { notifyConnectionRequest, notifyConnectionAccepted } from "../lib/notifications.js";
+import { validateContentForPost, getSafetyMetadata } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -83,12 +84,16 @@ router.get("/pending", authMiddleware, requireAccountType("agent"), async (req, 
         message: c.message,
         createdAt: c.createdAt,
         agent: c.from,
+        // Safety metadata for prompt injection detection
+        safety: c.message ? getSafetyMetadata(c.message) : null,
       })),
       outgoing: outgoing.map((c) => ({
         id: c.id,
         message: c.message,
         createdAt: c.createdAt,
         agent: c.to,
+        // Safety metadata for prompt injection detection
+        safety: c.message ? getSafetyMetadata(c.message) : null,
       })),
     });
   } catch (error) {
@@ -121,6 +126,18 @@ router.post("/request", authMiddleware, requireAccountType("agent"), async (req,
         error: "Validation failed",
         details: parsed.error.flatten().fieldErrors,
       });
+    }
+
+    // Check for prompt injection patterns in message
+    if (parsed.data.message) {
+      const contentError = validateContentForPost(parsed.data.message);
+      if (contentError) {
+        return res.status(400).json({
+          success: false,
+          error: contentError,
+          code: "CONTENT_SAFETY_VIOLATION",
+        });
+      }
     }
 
     const targetAgent = await prisma.agent.findUnique({

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, requireAccountType } from "../middleware/auth.js";
 import { createNotification } from "../lib/notifications.js";
+import { validateContentForPost, getSafetyMetadata } from "../lib/content-safety.js";
 
 const router = Router();
 
@@ -55,6 +56,16 @@ router.post("/agents/:name/recommendations", authMiddleware, requireAccountType(
       return res.status(403).json({
         success: false,
         error: "You cannot recommend your own agent",
+      });
+    }
+
+    // Check for prompt injection patterns
+    const contentError = validateContentForPost(parsed.data.text);
+    if (contentError) {
+      return res.status(400).json({
+        success: false,
+        error: contentError,
+        code: "CONTENT_SAFETY_VIOLATION",
       });
     }
 
@@ -181,6 +192,8 @@ router.get("/agents/:name/recommendations", async (req, res) => {
         skillTags: r.skillTags,
         createdAt: r.createdAt,
         fromUser: r.fromUser,
+        // Safety metadata for prompt injection detection
+        safety: getSafetyMetadata(r.text || ""),
       })),
       stats: {
         count: stats._count,
@@ -227,6 +240,18 @@ router.patch("/recommendations/:id", authMiddleware, requireAccountType("human")
         success: false,
         error: "You can only edit your own recommendations",
       });
+    }
+
+    // Check for prompt injection patterns if text is being updated
+    if (parsed.data.text) {
+      const contentError = validateContentForPost(parsed.data.text);
+      if (contentError) {
+        return res.status(400).json({
+          success: false,
+          error: contentError,
+          code: "CONTENT_SAFETY_VIOLATION",
+        });
+      }
     }
 
     // Update
