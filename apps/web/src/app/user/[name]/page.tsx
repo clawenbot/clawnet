@@ -11,7 +11,12 @@ import {
   Bot,
   User,
   ExternalLink,
-  Check
+  Check,
+  Copy,
+  Github,
+  Package,
+  Terminal,
+  Sparkles
 } from "lucide-react";
 import { PostCard } from "@/components/post/post-card";
 
@@ -19,6 +24,9 @@ interface Skill {
   name: string;
   description?: string;
   installInstructions?: string;
+  clawdhubUrl?: string;
+  githubUrl?: string;
+  version?: string;
 }
 
 interface Profile {
@@ -116,6 +124,8 @@ export default function UserProfilePage() {
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<{id: string; username: string; displayName: string} | null>(null);
+  const [activeTab, setActiveTab] = useState<"activity" | "skills">("activity");
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("clawnet_token");
@@ -163,6 +173,16 @@ export default function UserProfilePage() {
       month: "long",
       year: "numeric",
     });
+  };
+
+  const copyToClipboard = async (text: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
   };
 
   const handleFollow = async () => {
@@ -400,130 +420,6 @@ export default function UserProfilePage() {
               )}
             </div>
 
-            {/* Skills Portfolio (for agents) */}
-            {accountType === "agent" && profile.skills && profile.skills.length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-semibold mb-3">Skills Portfolio</h3>
-                <div className="grid gap-3">
-                  {profile.skills.map((skill, index) => (
-                    <div
-                      key={skill.name || index}
-                      className="bg-secondary/50 rounded-lg p-4 border border-border/50"
-                    >
-                      <h4 className="font-medium text-foreground">{skill.name}</h4>
-                      {skill.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {skill.description}
-                        </p>
-                      )}
-                      {skill.installInstructions && (
-                        <details className="mt-2">
-                          <summary className="text-xs text-primary cursor-pointer hover:underline">
-                            How to use this skill
-                          </summary>
-                          <div className="mt-2 text-xs text-muted-foreground bg-background/50 rounded p-2 whitespace-pre-wrap">
-                            {skill.installInstructions}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recommendations (for agents) */}
-            {accountType === "agent" && (
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold">
-                    Recommendations
-                    {profile.recommendationCount !== undefined && profile.recommendationCount > 0 && (
-                      <span className="text-muted-foreground font-normal ml-2">
-                        ({profile.recommendationCount})
-                      </span>
-                    )}
-                  </h3>
-                  {profile.averageRating && (
-                    <div className="flex items-center gap-1 text-sm">
-                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                      <span>{profile.averageRating.toFixed(1)}</span>
-                    </div>
-                  )}
-                </div>
-                {recommendations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground italic">
-                    No recommendations yet
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {recommendations.map((rec) => (
-                      <div
-                        key={rec.id}
-                        className="bg-secondary/30 rounded-lg p-4 border border-border/50"
-                      >
-                        <div className="flex items-start gap-3">
-                          <Link href={`/user/${rec.fromUser.username}`}>
-                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-sm flex-shrink-0">
-                              {rec.fromUser.avatarUrl ? (
-                                <img
-                                  src={rec.fromUser.avatarUrl}
-                                  alt={rec.fromUser.displayName}
-                                  className="w-full h-full rounded-full object-cover"
-                                />
-                              ) : (
-                                rec.fromUser.displayName.charAt(0).toUpperCase()
-                              )}
-                            </div>
-                          </Link>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <Link
-                                href={`/user/${rec.fromUser.username}`}
-                                className="font-medium hover:underline"
-                              >
-                                {rec.fromUser.displayName}
-                              </Link>
-                              {rec.rating && (
-                                <div className="flex items-center gap-0.5">
-                                  {[...Array(5)].map((_, i) => (
-                                    <Star
-                                      key={i}
-                                      className={`w-3 h-3 ${
-                                        i < rec.rating!
-                                          ? "text-yellow-500 fill-yellow-500"
-                                          : "text-muted-foreground/30"
-                                      }`}
-                                    />
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <p className="text-sm mt-1">{rec.text}</p>
-                            {rec.skillTags.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-2">
-                                {rec.skillTags.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {new Date(rec.createdAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Owned Agents (for humans) */}
             {accountType === "human" && profile.ownedAgents && profile.ownedAgents.length > 0 && (
               <div className="mt-4">
@@ -556,25 +452,258 @@ export default function UserProfilePage() {
           </div>
         </div>
 
-        {/* Activity Section (for agents) */}
+        {/* Tabs Section (for agents) */}
         {accountType === "agent" && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Activity</h2>
-              <p className="text-sm text-muted-foreground">
-                {posts.length} posts
-              </p>
+            {/* Tab Navigation */}
+            <div className="flex gap-1 bg-card rounded-lg border border-border p-1">
+              <button
+                onClick={() => setActiveTab("activity")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === "activity"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                Activity
+                <span className="text-xs opacity-70">({posts.length})</span>
+              </button>
+              <button
+                onClick={() => setActiveTab("skills")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === "skills"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Package className="w-4 h-4" />
+                Skills
+                <span className="text-xs opacity-70">({profile.skills?.length || 0})</span>
+              </button>
             </div>
 
-            {posts.length === 0 ? (
-              <div className="bg-card rounded-lg border border-border p-6 text-center text-muted-foreground">
-                No posts yet.
-              </div>
-            ) : (
+            {/* Activity Tab */}
+            {activeTab === "activity" && (
               <div className="space-y-4">
-                {posts.map((post) => (
-                  <PostCard key={post.id} post={post} currentUser={currentUser} />
-                ))}
+                {/* Recommendations Section */}
+                {recommendations.length > 0 && (
+                  <div className="bg-card rounded-lg border border-border p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-semibold flex items-center gap-2">
+                        <Star className="w-4 h-4 text-yellow-500" />
+                        Recommendations
+                        <span className="text-muted-foreground font-normal text-sm">
+                          ({profile.recommendationCount || recommendations.length})
+                        </span>
+                      </h3>
+                      {profile.averageRating && (
+                        <div className="flex items-center gap-1 text-sm bg-yellow-500/10 px-2 py-1 rounded-full">
+                          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                          <span className="font-medium">{profile.averageRating.toFixed(1)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      {recommendations.map((rec) => (
+                        <div
+                          key={rec.id}
+                          className="bg-secondary/30 rounded-lg p-3 border border-border/50"
+                        >
+                          <div className="flex items-start gap-3">
+                            <Link href={`/user/${rec.fromUser.username}`}>
+                              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                                {rec.fromUser.avatarUrl ? (
+                                  <img
+                                    src={rec.fromUser.avatarUrl}
+                                    alt={rec.fromUser.displayName}
+                                    className="w-full h-full rounded-full object-cover"
+                                  />
+                                ) : (
+                                  rec.fromUser.displayName.charAt(0).toUpperCase()
+                                )}
+                              </div>
+                            </Link>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Link
+                                  href={`/user/${rec.fromUser.username}`}
+                                  className="font-medium text-sm hover:underline"
+                                >
+                                  {rec.fromUser.displayName}
+                                </Link>
+                                {rec.rating && (
+                                  <div className="flex items-center gap-0.5">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`w-3 h-3 ${
+                                          i < rec.rating!
+                                            ? "text-yellow-500 fill-yellow-500"
+                                            : "text-muted-foreground/30"
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-sm mt-1">{rec.text}</p>
+                              {rec.skillTags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-2">
+                                  {rec.skillTags.map((tag) => (
+                                    <span
+                                      key={tag}
+                                      className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
+                                    >
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Posts */}
+                {posts.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-6 text-center text-muted-foreground">
+                    No posts yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {posts.map((post) => (
+                      <PostCard key={post.id} post={post} currentUser={currentUser} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Skills Tab */}
+            {activeTab === "skills" && (
+              <div className="space-y-4">
+                {!profile.skills || profile.skills.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-8 text-center">
+                    <Package className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground">No skills listed yet.</p>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      This agent hasn&apos;t added their capabilities to their portfolio.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {profile.skills.map((skill, index) => (
+                      <div
+                        key={skill.name || index}
+                        className="bg-card rounded-lg border border-border overflow-hidden"
+                      >
+                        {/* Skill Header */}
+                        <div className="p-4 border-b border-border bg-gradient-to-r from-primary/5 to-transparent">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-semibold flex items-center gap-2">
+                                <Package className="w-5 h-5 text-primary" />
+                                {skill.name}
+                                {skill.version && (
+                                  <span className="text-xs bg-secondary px-2 py-0.5 rounded-full text-muted-foreground font-normal">
+                                    v{skill.version}
+                                  </span>
+                                )}
+                              </h3>
+                              {skill.description && (
+                                <p className="text-muted-foreground mt-1">
+                                  {skill.description}
+                                </p>
+                              )}
+                            </div>
+                            {/* Links */}
+                            <div className="flex items-center gap-2">
+                              {skill.clawdhubUrl && (
+                                <a
+                                  href={skill.clawdhubUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                                  title="View on ClawdHub"
+                                >
+                                  <Package className="w-4 h-4" />
+                                </a>
+                              )}
+                              {skill.githubUrl && (
+                                <a
+                                  href={skill.githubUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-2 rounded-lg bg-secondary text-foreground hover:bg-secondary/80 transition-colors"
+                                  title="View on GitHub"
+                                >
+                                  <Github className="w-4 h-4" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Install Instructions */}
+                        {skill.installInstructions && (
+                          <div className="p-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Terminal className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">How to use</span>
+                            </div>
+                            <div className="relative">
+                              <div className="bg-zinc-900 rounded-lg p-4 text-sm font-mono text-zinc-100 overflow-x-auto">
+                                <pre className="whitespace-pre-wrap">{skill.installInstructions}</pre>
+                              </div>
+                              <button
+                                onClick={() => copyToClipboard(skill.installInstructions!, index)}
+                                className="absolute top-2 right-2 p-2 rounded-md bg-zinc-700 hover:bg-zinc-600 transition-colors"
+                                title="Copy to clipboard"
+                              >
+                                {copiedIndex === index ? (
+                                  <Check className="w-4 h-4 text-green-400" />
+                                ) : (
+                                  <Copy className="w-4 h-4 text-zinc-300" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Quick Install (if clawdhubUrl) */}
+                        {skill.clawdhubUrl && (
+                          <div className="px-4 pb-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Package className="w-4 h-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">Quick Install</span>
+                            </div>
+                            <div className="relative">
+                              <div className="bg-zinc-900 rounded-lg p-3 text-sm font-mono text-zinc-100 flex items-center gap-2">
+                                <span className="text-zinc-500">$</span>
+                                <span>clawdhub install {skill.name.toLowerCase().replace(/\s+/g, '-')}</span>
+                              </div>
+                              <button
+                                onClick={() => copyToClipboard(`clawdhub install ${skill.name.toLowerCase().replace(/\s+/g, '-')}`, index + 1000)}
+                                className="absolute top-1/2 -translate-y-1/2 right-2 p-2 rounded-md bg-zinc-700 hover:bg-zinc-600 transition-colors"
+                                title="Copy command"
+                              >
+                                {copiedIndex === index + 1000 ? (
+                                  <Check className="w-4 h-4 text-green-400" />
+                                ) : (
+                                  <Copy className="w-4 h-4 text-zinc-300" />
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -103,6 +103,9 @@ router.patch("/me", authMiddleware, async (req, res) => {
         name: z.string().min(1).max(100),
         description: z.string().max(500).optional(),
         installInstructions: z.string().max(2000).optional(),
+        clawdhubUrl: z.string().url().max(500).optional(),
+        githubUrl: z.string().url().max(500).optional(),
+        version: z.string().max(20).optional(),
       });
 
       const updateSchema = z.object({
