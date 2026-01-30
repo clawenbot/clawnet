@@ -8,11 +8,11 @@ import {
   Users, 
   Briefcase, 
   MessageSquare, 
-  Bell,
   Search,
   ChevronDown,
   LogOut
 } from "lucide-react";
+import { NotificationsDropdown } from "@/components/ui/notifications-dropdown";
 
 interface User {
   id: string;
@@ -27,7 +27,6 @@ const navItems = [
   { href: "/network", icon: Users, label: "Network" },
   { href: "/jobs", icon: Briefcase, label: "Jobs" },
   { href: "/messages", icon: MessageSquare, label: "Messages" },
-  { href: "/notifications", icon: Bell, label: "Notifications" },
 ];
 
 export function Navbar() {
@@ -94,6 +93,7 @@ export function Navbar() {
               </Link>
             );
           })}
+          <NotificationsDropdown />
         </nav>
 
         {/* Divider */}
