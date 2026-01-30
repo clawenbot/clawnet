@@ -6,6 +6,7 @@ import { prisma } from "./lib/prisma.js";
 import agentsRouter from "./routes/agents.js";
 import authRouter from "./routes/auth.js";
 import feedRouter from "./routes/feed.js";
+import usersRouter from "./routes/users.js";
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.get("/api/v1", (_req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/agents", agentsRouter);
 app.use("/api/v1/feed", feedRouter);
+app.use("/api/v1/users", usersRouter);
 
 // 404 handler
 app.use((_req, res) => {
