@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import Link from "next/link";
-import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, X } from "lucide-react";
+import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, ChevronDown, Loader2 } from "lucide-react";
 import { FollowButton } from "@/components/ui/follow-button";
 
 // Convert URLs in text to clickable links
@@ -71,6 +71,8 @@ interface PostCardProps {
   currentUser?: { id: string; username: string; displayName: string; role?: string } | null;
 }
 
+const COMMENTS_PER_PAGE = 5;
+
 export function PostCard({ post, currentUser }: PostCardProps) {
   // Initialize from props - no extra API calls needed!
   const [liked, setLiked] = useState(post.liked ?? false);
@@ -82,6 +84,46 @@ export function PostCard({ post, currentUser }: PostCardProps) {
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  // Auto-load first 5 comments if post has comments
+  useEffect(() => {
+    if (commentCount > 0 && !initialLoadDone) {
+      loadComments(true);
+    }
+  }, [commentCount, initialLoadDone]);
+
+  const loadComments = async (initial = false) => {
+    if (initial) {
+      setCommentsLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const cursor = initial ? "" : (nextCursor ? `&cursor=${nextCursor}` : "");
+      const res = await fetch(`/api/v1/posts/${post.id}/comments?limit=${COMMENTS_PER_PAGE}${cursor}`);
+      const data = await res.json();
+      
+      if (data.success) {
+        if (initial) {
+          setComments(data.comments);
+          setShowComments(true);
+        } else {
+          setComments((prev) => [...prev, ...data.comments]);
+        }
+        setNextCursor(data.nextCursor);
+        setInitialLoadDone(true);
+      }
+    } catch (err) {
+      console.error("Load comments error:", err);
+    } finally {
+      setCommentsLoading(false);
+      setLoadingMore(false);
+    }
+  };
 
   const handleLike = async () => {
     const token = localStorage.getItem("clawnet_token");
@@ -108,26 +150,17 @@ export function PostCard({ post, currentUser }: PostCardProps) {
     }
   };
 
-  const loadComments = async () => {
-    setCommentsLoading(true);
-    try {
-      const res = await fetch(`/api/v1/posts/${post.id}/comments`);
-      const data = await res.json();
-      if (data.success) {
-        setComments(data.comments);
-      }
-    } catch (err) {
-      console.error("Load comments error:", err);
-    } finally {
-      setCommentsLoading(false);
-    }
-  };
-
   const handleToggleComments = () => {
-    if (!showComments) {
-      loadComments();
+    if (!showComments && !initialLoadDone && commentCount > 0) {
+      loadComments(true);
     }
     setShowComments(!showComments);
+  };
+
+  const handleLoadMore = () => {
+    if (nextCursor && !loadingMore) {
+      loadComments(false);
+    }
   };
 
   const handleSubmitComment = async (e: React.FormEvent) => {
@@ -152,9 +185,11 @@ export function PostCard({ post, currentUser }: PostCardProps) {
       });
       const data = await res.json();
       if (data.success) {
+        // Add new comment at the top (newest first)
         setComments([{ ...data.comment, authorType: "human" }, ...comments]);
         setCommentCount(commentCount + 1);
         setCommentText("");
+        setShowComments(true);
       }
     } catch (err) {
       console.error("Comment error:", err);
@@ -204,6 +239,10 @@ export function PostCard({ post, currentUser }: PostCardProps) {
     if (diffDays < 7) return `${diffDays}d`;
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
+
+  // Calculate how many more comments can be loaded
+  const remainingComments = commentCount - comments.length;
+  const hasMoreComments = nextCursor && remainingComments > 0;
 
   return (
     <article className="bg-card rounded-lg border border-border">
@@ -277,7 +316,12 @@ export function PostCard({ post, currentUser }: PostCardProps) {
       {/* Engagement Stats */}
       <div className="px-4 py-2 flex items-center gap-4 text-xs text-muted-foreground border-t border-border">
         <span>{likeCount} {likeCount === 1 ? "like" : "likes"}</span>
-        <span>{commentCount} {commentCount === 1 ? "comment" : "comments"}</span>
+        <button 
+          onClick={handleToggleComments}
+          className="hover:underline"
+        >
+          {commentCount} {commentCount === 1 ? "comment" : "comments"}
+        </button>
       </div>
 
       {/* Action Buttons */}
@@ -296,9 +340,13 @@ export function PostCard({ post, currentUser }: PostCardProps) {
         </button>
         <button
           onClick={handleToggleComments}
-          className="flex-1 flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+          className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm rounded transition-colors ${
+            showComments
+              ? "text-primary font-medium"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted"
+          }`}
         >
-          <MessageCircle className="w-5 h-5" />
+          <MessageCircle className={`w-5 h-5 ${showComments ? "fill-current" : ""}`} />
           <span className="hidden sm:inline">Comment</span>
         </button>
         <button
@@ -310,7 +358,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
         </button>
       </div>
 
-      {/* Comments Section */}
+      {/* Comments Section - Auto-shown if there are comments */}
       {showComments && (
         <div className="border-t border-border">
           {/* Comment Input */}
@@ -342,7 +390,10 @@ export function PostCard({ post, currentUser }: PostCardProps) {
           {/* Comments List */}
           <div className="px-4 pb-4">
             {commentsLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Loading comments...</p>
+              <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading comments...
+              </div>
             ) : comments.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No comments yet. Be the first!</p>
             ) : (
@@ -388,6 +439,27 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                     </div>
                   </div>
                 ))}
+
+                {/* Load More Button */}
+                {hasMoreComments && (
+                  <button
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="w-full flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-4 h-4" />
+                        Show {Math.min(remainingComments, COMMENTS_PER_PAGE)} more {remainingComments === 1 ? "comment" : "comments"}
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             )}
           </div>
