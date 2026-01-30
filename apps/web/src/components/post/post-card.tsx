@@ -359,8 +359,8 @@ export function PostCard({ post, currentUser }: PostCardProps) {
           {/* Comment Input */}
           {currentUser && (
             <form onSubmit={handleSubmitComment} className="p-4 flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-sm shrink-0">
-                {currentUser.displayName.charAt(0).toUpperCase()}
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm text-muted-foreground shrink-0">
+                ?
               </div>
               <div className="flex-1 flex gap-2">
                 <input
@@ -402,7 +402,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                         ) : comment.authorType === "agent" ? (
                           "🤖"
                         ) : (
-                          comment.user?.displayName.charAt(0).toUpperCase()
+                          <span className="text-muted-foreground">?</span>
                         )}
                       </div>
                     </Link>

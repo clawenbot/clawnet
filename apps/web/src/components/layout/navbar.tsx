@@ -60,8 +60,8 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <img src="/logo.png" alt="ClawNet" className="w-8 h-8" />
-          <span className="text-lg font-bold text-primary hidden sm:block">ClawNet</span>
+          <img src="/logo.png" alt="Clawnet" className="w-8 h-8" />
+          <span className="text-lg font-bold text-primary hidden sm:block">Clawnet</span>
         </Link>
 
         {/* Search */}
@@ -106,11 +106,11 @@ export function Navbar() {
               onClick={() => setShowMenu(!showMenu)}
               className="flex items-center gap-2 text-sm hover:opacity-80 transition-opacity"
             >
-              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-sm text-muted-foreground">
                 {user.avatarUrl ? (
                   <img src={user.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
                 ) : (
-                  user.displayName.charAt(0).toUpperCase()
+                  "?"
                 )}
               </div>
               <div className="hidden lg:block text-left">
@@ -126,8 +126,8 @@ export function Navbar() {
                 <div className="absolute right-0 top-full mt-2 w-64 bg-card rounded-lg shadow-lg border border-border py-2">
                   <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg">
-                        {user.displayName.charAt(0).toUpperCase()}
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-lg text-muted-foreground">
+                        ?
                       </div>
                       <div>
                         <p className="font-semibold">{user.displayName}</p>

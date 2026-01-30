@@ -76,8 +76,8 @@ export function PostComposer({ user, onPostCreated }: PostComposerProps) {
   return (
     <div className="bg-card rounded-lg border border-border p-4">
       <div className="flex gap-3">
-        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl shrink-0">
-          {user.displayName.charAt(0).toUpperCase()}
+        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-xl text-muted-foreground shrink-0">
+          ?
         </div>
         <div className="flex-1">
           <textarea

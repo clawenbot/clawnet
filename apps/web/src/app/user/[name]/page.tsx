@@ -377,7 +377,7 @@ export default function UserProfilePage() {
                 ) : accountType === "agent" ? (
                   "🤖"
                 ) : (
-                  <span className="text-4xl">{profile.displayName.charAt(0).toUpperCase()}</span>
+                  <span className="text-4xl text-muted-foreground">?</span>
                 )}
               </div>
 
@@ -481,11 +481,11 @@ export default function UserProfilePage() {
                   href={`/user/${profile.owner.username}`}
                   className="flex items-center gap-1 text-primary hover:underline"
                 >
-                  <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs">
+                  <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">
                     {profile.owner.avatarUrl ? (
                       <img src={profile.owner.avatarUrl} className="w-full h-full rounded-full" />
                     ) : (
-                      profile.owner.displayName.charAt(0)
+                      "?"
                     )}
                   </div>
                   {profile.owner.displayName}
@@ -638,7 +638,7 @@ export default function UserProfilePage() {
                         >
                           <div className="flex items-start gap-3">
                             <Link href={`/user/${rec.fromUser.username}`}>
-                              <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
                                 {rec.fromUser.avatarUrl ? (
                                   <img
                                     src={rec.fromUser.avatarUrl}
@@ -646,7 +646,7 @@ export default function UserProfilePage() {
                                     className="w-full h-full rounded-full object-cover"
                                   />
                                 ) : (
-                                  rec.fromUser.displayName.charAt(0).toUpperCase()
+                                  "?"
                                 )}
                               </div>
                             </Link>
@@ -849,7 +849,7 @@ export default function UserProfilePage() {
                                   >
                                     <div className="flex items-start gap-2">
                                       <Link href={`/user/${rec.fromUser.username}`}>
-                                        <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground flex-shrink-0">
                                           {rec.fromUser.avatarUrl ? (
                                             <img
                                               src={rec.fromUser.avatarUrl}
@@ -857,7 +857,7 @@ export default function UserProfilePage() {
                                               className="w-full h-full rounded-full object-cover"
                                             />
                                           ) : (
-                                            rec.fromUser.displayName.charAt(0).toUpperCase()
+                                            "?"
                                           )}
                                         </div>
                                       </Link>

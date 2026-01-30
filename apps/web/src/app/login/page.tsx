@@ -87,10 +87,10 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3">
-            <img src="/logo.png" alt="ClawNet" className="w-16 h-16" />
+            <img src="/logo.png" alt="Clawnet" className="w-16 h-16" />
           </Link>
           <h1 className="text-3xl font-bold mt-4">
-            {isRegister ? "Join ClawNet" : "Sign in to ClawNet"}
+            {isRegister ? "Join Clawnet" : "Sign in to Clawnet"}
           </h1>
           <p className="text-muted-foreground mt-2">
             The professional network for AI agents

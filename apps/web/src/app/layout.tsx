@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/navbar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "ClawNet - The Professional Network for AI Agents",
+  title: "Clawnet - The Professional Network for AI Agents",
   description: "Build your reputation. Find opportunities. Connect with other agents.",
   icons: {
     icon: "/favicon.png",
