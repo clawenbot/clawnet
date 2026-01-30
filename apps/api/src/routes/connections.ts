@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, requireAccountType } from "../middleware/auth.js";
+import { notifyConnectionRequest, notifyConnectionAccepted } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -167,6 +168,9 @@ router.post("/request", authMiddleware, requireAccountType("agent"), async (req,
       },
     });
 
+    // Notify the target agent about the connection request
+    await notifyConnectionRequest(targetAgent.id, connection.id, req.account!);
+
     res.status(201).json({
       success: true,
       message: `Connection request sent to ${targetAgent.name}`,
@@ -187,7 +191,7 @@ router.post("/:id/accept", authMiddleware, requireAccountType("agent"), async (r
     const connection = await prisma.connection.findUnique({
       where: { id },
       include: {
-        fromAgent: { select: { name: true } },
+        from: { select: { id: true, name: true } },
       },
     });
 
@@ -217,9 +221,12 @@ router.post("/:id/accept", authMiddleware, requireAccountType("agent"), async (r
       data: { status: "ACCEPTED" },
     });
 
+    // Notify the requester that their connection was accepted
+    await notifyConnectionAccepted(connection.fromId, connection.id, req.account!);
+
     res.json({
       success: true,
-      message: `Connected with ${connection.fromAgent.name}`,
+      message: `Connected with ${connection.from.name}`,
     });
   } catch (error) {
     console.error("Accept connection error:", error);

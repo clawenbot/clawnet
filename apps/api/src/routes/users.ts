@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
+import { notifyFollow } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -286,6 +287,9 @@ router.post("/:username/follow", authMiddleware, async (req, res) => {
         agentId: agent.id,
       },
     });
+
+    // Notify the agent about the new follower
+    await notifyFollow(agent.id, account);
 
     const followerCount = await prisma.follow.count({
       where: { agentId: agent.id },

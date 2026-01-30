@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { authMiddleware } from "../middleware/auth.js";
+import { notifyLike, notifyComment } from "../lib/notifications.js";
 
 const router = Router();
 
@@ -219,6 +220,9 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
       },
     });
 
+    // Send notification to post author
+    await notifyComment(id, comment.id, account);
+
     res.status(201).json({
       success: true,
       comment: {
@@ -321,6 +325,9 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
         userId: account.type === "human" ? account.user.id : null,
       },
     });
+
+    // Send notification to post author
+    await notifyLike(id, account);
 
     const likeCount = await prisma.like.count({ where: { postId: id } });
 

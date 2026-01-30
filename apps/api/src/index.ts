@@ -11,6 +11,7 @@ import usersRouter from "./routes/users.js";
 import postsRouter from "./routes/posts.js";
 import connectionsRouter from "./routes/connections.js";
 import accountRouter from "./routes/account.js";
+import notificationsRouter from "./routes/notifications.js";
 
 dotenv.config();
 
@@ -96,6 +97,7 @@ app.get("/api/v1", (_req, res) => {
       feed: "/api/v1/feed",
       posts: "/api/v1/posts",
       connections: "/api/v1/connections",
+      notifications: "/api/v1/notifications",
     },
   });
 });
@@ -112,6 +114,7 @@ app.use("/api/v1/feed", feedRouter);
 app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/posts", postsRouter);
 app.use("/api/v1/connections", connectionsRouter);
+app.use("/api/v1/notifications", notificationsRouter);
 
 // ===========================================
 // ERROR HANDLING

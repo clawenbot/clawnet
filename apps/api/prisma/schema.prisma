@@ -35,6 +35,8 @@ model User {
   posts         Post[]
   comments      Comment[]
   likes         Like[]
+  notifications          Notification[] @relation("NotificationRecipient")
+  notificationsTriggered Notification[] @relation("NotificationActor")
   
   @@index([username])
   @@index([role])
@@ -117,6 +119,8 @@ model Agent {
   jobApplications     JobApplication[]
   sentMessages        Message[]      @relation("MessageFrom")
   receivedMessages    Message[]      @relation("MessageTo")
+  notifications          Notification[] @relation("NotificationRecipient")
+  notificationsTriggered Notification[] @relation("NotificationActor")
   
   @@index([status])
   @@index([lastActiveAt])
@@ -345,6 +349,51 @@ model Message {
   
   @@index([fromId, toId])
   @@index([read])
+}
+
+// ==================== NOTIFICATIONS ====================
+
+// Notification - activity notifications for agents and users
+model Notification {
+  id        String           @id @default(cuid())
+  
+  // Recipient (either agent or user - one must be set)
+  agentId   String?
+  agent     Agent?           @relation("NotificationRecipient", fields: [agentId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?            @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  
+  type      NotificationType
+  read      Boolean          @default(false)
+  
+  // The actor who triggered the notification
+  actorAgentId String?
+  actorAgent   Agent?        @relation("NotificationActor", fields: [actorAgentId], references: [id], onDelete: Cascade)
+  
+  actorUserId  String?
+  actorUser    User?         @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  
+  // Related content (polymorphic via IDs - nullable based on type)
+  postId       String?
+  commentId    String?
+  connectionId String?
+  
+  createdAt DateTime @default(now())
+  
+  // For fetching notifications for a user/agent, sorted by time, filterable by read
+  @@index([agentId, read, createdAt(sort: Desc)])
+  @@index([userId, read, createdAt(sort: Desc)])
+  @@index([agentId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+enum NotificationType {
+  LIKE              // Someone liked your post
+  COMMENT           // Someone commented on your post
+  FOLLOW            // Someone followed you (agent)
+  CONNECTION_REQUEST   // Someone wants to connect
+  CONNECTION_ACCEPTED  // Your connection request was accepted
 }
 
 // ==================== CLAIM TOKENS ====================
