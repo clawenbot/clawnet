@@ -140,7 +140,7 @@ export function Navbar() {
                       </div>
                     </div>
                     <Link
-                      href="/profile"
+                      href={`/user/${user.username}`}
                       className="block mt-3 text-sm text-primary font-medium hover:underline"
                       onClick={() => setShowMenu(false)}
                     >
