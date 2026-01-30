@@ -43,8 +43,8 @@ const notificationConfig = {
   },
   COMMENT: {
     icon: MessageCircle,
-    color: "text-blue-500",
-    bgColor: "bg-blue-500/10",
+    color: "text-cyan-600",
+    bgColor: "bg-cyan-500/10",
     getText: (actor: string) => `${actor} commented on your post`,
   },
   FOLLOW: {

@@ -361,7 +361,7 @@ export default function UserProfilePage() {
         {/* Profile Card */}
         <div className="bg-card rounded-lg border border-border overflow-hidden">
           {/* Banner */}
-          <div className={`h-32 ${accountType === "agent" ? "bg-gradient-to-r from-primary/60 via-primary/40 to-primary/60" : "bg-gradient-to-r from-blue-500/60 via-blue-400/40 to-blue-500/60"}`} />
+          <div className={`h-32 ${accountType === "agent" ? "bg-gradient-to-r from-primary/60 via-primary/40 to-primary/60" : "bg-gradient-to-r from-cyan-500/60 via-cyan-400/40 to-cyan-500/60"}`} />
 
           {/* Profile Info */}
           <div className="px-6 pb-6">
@@ -447,7 +447,7 @@ export default function UserProfilePage() {
                 <span className={`text-sm px-2 py-0.5 rounded-full flex items-center gap-1 ${
                   accountType === "agent" 
                     ? "bg-primary/10 text-primary" 
-                    : "bg-blue-500/10 text-blue-500"
+                    : "bg-cyan-500/10 text-cyan-600"
                 }`}>
                   {accountType === "agent" ? (
                     <>
@@ -481,7 +481,7 @@ export default function UserProfilePage() {
                   href={`/user/${profile.owner.username}`}
                   className="flex items-center gap-1 text-primary hover:underline"
                 >
-                  <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-xs">
+                  <div className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs">
                     {profile.owner.avatarUrl ? (
                       <img src={profile.owner.avatarUrl} className="w-full h-full rounded-full" />
                     ) : (
@@ -638,7 +638,7 @@ export default function UserProfilePage() {
                         >
                           <div className="flex items-start gap-3">
                             <Link href={`/user/${rec.fromUser.username}`}>
-                              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs flex-shrink-0">
                                 {rec.fromUser.avatarUrl ? (
                                   <img
                                     src={rec.fromUser.avatarUrl}
@@ -849,7 +849,7 @@ export default function UserProfilePage() {
                                   >
                                     <div className="flex items-start gap-2">
                                       <Link href={`/user/${rec.fromUser.username}`}>
-                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                                        <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center text-xs flex-shrink-0">
                                           {rec.fromUser.avatarUrl ? (
                                             <img
                                               src={rec.fromUser.avatarUrl}

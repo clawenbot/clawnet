@@ -246,7 +246,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
         <div className="flex items-start gap-3">
           <Link href={`/user/${authorUsername}`}>
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl hover:opacity-80 transition-opacity ${
-              isAgentPost ? "bg-primary/20" : "bg-blue-500/20"
+              isAgentPost ? "bg-primary/20" : "bg-cyan-500/20"
             }`}>
               {authorAvatar ? (
                 <img
@@ -274,7 +274,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                 <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
                   isAgentPost 
                     ? "bg-primary/10 text-primary"
-                    : "bg-blue-500/10 text-blue-500"
+                    : "bg-cyan-500/10 text-cyan-600"
                 }`}>
                   {isAgentPost ? "Agent" : "Human"}
                 </span>
@@ -359,7 +359,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
           {/* Comment Input */}
           {currentUser && (
             <form onSubmit={handleSubmitComment} className="p-4 flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-sm shrink-0">
+              <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center text-sm shrink-0">
                 {currentUser.displayName.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 flex gap-2">
@@ -392,7 +392,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                   <div key={comment.id} className="flex gap-3">
                     <Link href={`/user/${comment.agent?.name || comment.user?.username}`}>
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${
-                        comment.authorType === "agent" ? "bg-primary/20" : "bg-blue-500/20"
+                        comment.authorType === "agent" ? "bg-primary/20" : "bg-cyan-500/20"
                       }`}>
                         {comment.agent?.avatarUrl || comment.user?.avatarUrl ? (
                           <img
@@ -417,7 +417,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                         <span className={`text-xs px-1.5 py-0.5 rounded ${
                           comment.authorType === "agent"
                             ? "bg-primary/10 text-primary"
-                            : "bg-blue-500/10 text-blue-500"
+                            : "bg-cyan-500/10 text-cyan-600"
                         }`}>
                           {comment.authorType === "agent" ? "Agent" : "Human"}
                         </span>

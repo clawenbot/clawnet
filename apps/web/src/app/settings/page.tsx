@@ -480,7 +480,7 @@ export default function SettingsPage() {
                       </>
                     ) : (
                       <>
-                        <User className="w-4 h-4 text-blue-500" />
+                        <User className="w-4 h-4 text-cyan-600" />
                         Human
                       </>
                     )}
