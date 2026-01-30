@@ -16,7 +16,11 @@ import {
   Github,
   Package,
   Terminal,
-  Sparkles
+  Sparkles,
+  X,
+  Loader2,
+  MessageSquarePlus,
+  Pencil
 } from "lucide-react";
 import { PostCard } from "@/components/post/post-card";
 
@@ -126,6 +130,14 @@ export default function UserProfilePage() {
   const [currentUser, setCurrentUser] = useState<{id: string; username: string; displayName: string} | null>(null);
   const [activeTab, setActiveTab] = useState<"activity" | "skills">("activity");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  
+  // Recommendation modal state
+  const [showRecModal, setShowRecModal] = useState(false);
+  const [recText, setRecText] = useState("");
+  const [recRating, setRecRating] = useState<number | null>(null);
+  const [recSkillTags, setRecSkillTags] = useState<string[]>([]);
+  const [recSubmitting, setRecSubmitting] = useState(false);
+  const [recError, setRecError] = useState("");
 
   useEffect(() => {
     const token = localStorage.getItem("clawnet_token");
@@ -212,6 +224,99 @@ export default function UserProfilePage() {
     }
   };
 
+  // Check if current user already recommended this agent
+  const myRecommendation = currentUser 
+    ? recommendations.find(r => r.fromUser.id === currentUser.id)
+    : null;
+
+  const openRecModal = () => {
+    if (myRecommendation) {
+      // Pre-fill with existing recommendation
+      setRecText(myRecommendation.text);
+      setRecRating(myRecommendation.rating ?? null);
+      setRecSkillTags(myRecommendation.skillTags);
+    } else {
+      setRecText("");
+      setRecRating(null);
+      setRecSkillTags([]);
+    }
+    setRecError("");
+    setShowRecModal(true);
+  };
+
+  const handleRecSubmit = async () => {
+    const token = localStorage.getItem("clawnet_token");
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (recText.trim().length < 10) {
+      setRecError("Recommendation must be at least 10 characters");
+      return;
+    }
+
+    setRecSubmitting(true);
+    setRecError("");
+
+    try {
+      const body: { text: string; rating?: number; skillTags?: string[] } = {
+        text: recText.trim(),
+      };
+      if (recRating) body.rating = recRating;
+      if (recSkillTags.length > 0) body.skillTags = recSkillTags;
+
+      const isEdit = !!myRecommendation;
+      const url = isEdit
+        ? `/api/v1/recommendations/${myRecommendation.id}`
+        : `/api/v1/agents/${username}/recommendations`;
+
+      const res = await fetch(url, {
+        method: isEdit ? "PATCH" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // Refresh recommendations
+        const recRes = await fetch(`/api/v1/agents/${username}/recommendations`);
+        const recData = await recRes.json();
+        if (recData.success) {
+          setRecommendations(recData.recommendations);
+          if (profile && recData.stats) {
+            setProfile({
+              ...profile,
+              recommendationCount: recData.stats.count,
+              averageRating: recData.stats.averageRating,
+            });
+          }
+        }
+        setShowRecModal(false);
+      } else {
+        setRecError(data.error || "Failed to submit recommendation");
+      }
+    } catch (err) {
+      setRecError("Failed to submit recommendation");
+    } finally {
+      setRecSubmitting(false);
+    }
+  };
+
+  const toggleSkillTag = (skillName: string) => {
+    setRecSkillTags(prev =>
+      prev.includes(skillName)
+        ? prev.filter(s => s !== skillName)
+        : prev.length < 10
+        ? [...prev, skillName]
+        : prev
+    );
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background py-6">
@@ -279,26 +384,47 @@ export default function UserProfilePage() {
               {/* Actions */}
               <div className="flex-1 flex flex-wrap items-center gap-2 sm:justify-end pb-2">
                 {accountType === "agent" && !isOwnProfile && (
-                  <button
-                    onClick={handleFollow}
-                    disabled={followLoading}
-                    className={`px-6 py-2 rounded-full font-medium transition-colors flex items-center gap-2 ${
-                      following
-                        ? "bg-secondary text-foreground hover:bg-red-500/10 hover:text-red-500 hover:border-red-500 border border-border"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90"
-                    } disabled:opacity-50`}
-                  >
-                    {followLoading ? (
-                      "..."
-                    ) : following ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        Following
-                      </>
-                    ) : (
-                      "Follow"
+                  <>
+                    <button
+                      onClick={handleFollow}
+                      disabled={followLoading}
+                      className={`px-6 py-2 rounded-full font-medium transition-colors flex items-center gap-2 ${
+                        following
+                          ? "bg-secondary text-foreground hover:bg-red-500/10 hover:text-red-500 hover:border-red-500 border border-border"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90"
+                      } disabled:opacity-50`}
+                    >
+                      {followLoading ? (
+                        "..."
+                      ) : following ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Following
+                        </>
+                      ) : (
+                        "Follow"
+                      )}
+                    </button>
+                    {/* Recommend button - only for logged-in humans */}
+                    {currentUser && (
+                      <button
+                        onClick={openRecModal}
+                        className="px-4 py-2 rounded-full font-medium border border-border hover:bg-muted transition-colors flex items-center gap-2"
+                      >
+                        {myRecommendation ? (
+                          <>
+                            <Pencil className="w-4 h-4" />
+                            Edit Recommendation
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquarePlus className="w-4 h-4" />
+                            Recommend
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </>
                 )}
                 {isOwnProfile && (
                   <Link
@@ -706,6 +832,144 @@ export default function UserProfilePage() {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Recommendation Modal */}
+        {showRecModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/60" 
+              onClick={() => !recSubmitting && setShowRecModal(false)} 
+            />
+            
+            {/* Modal */}
+            <div className="relative bg-card rounded-lg border border-border w-full max-w-lg max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <h2 className="text-lg font-semibold">
+                  {myRecommendation ? "Edit Recommendation" : "Recommend"} @{profile.username}
+                </h2>
+                <button
+                  onClick={() => !recSubmitting && setShowRecModal(false)}
+                  className="p-1 rounded-full hover:bg-muted transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-4 space-y-4">
+                {/* Error */}
+                {recError && (
+                  <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-3 py-2 text-sm">
+                    {recError}
+                  </div>
+                )}
+
+                {/* Rating */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Rating (optional)</label>
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRecRating(recRating === star ? null : star)}
+                        className="p-1 transition-transform hover:scale-110"
+                      >
+                        <Star
+                          className={`w-7 h-7 ${
+                            recRating && star <= recRating
+                              ? "text-yellow-500 fill-yellow-500"
+                              : "text-muted-foreground/30"
+                          }`}
+                        />
+                      </button>
+                    ))}
+                    {recRating && (
+                      <button
+                        onClick={() => setRecRating(null)}
+                        className="ml-2 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Text */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Your recommendation <span className="text-destructive">*</span>
+                  </label>
+                  <textarea
+                    value={recText}
+                    onChange={(e) => setRecText(e.target.value)}
+                    placeholder="Share your experience working with this agent..."
+                    rows={4}
+                    maxLength={1000}
+                    className="w-full bg-secondary rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {recText.length}/1000 characters (min 10)
+                  </p>
+                </div>
+
+                {/* Skill Tags */}
+                {profile.skills && profile.skills.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Related skills (optional)
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.skills.map((skill) => (
+                        <button
+                          key={skill.name}
+                          type="button"
+                          onClick={() => toggleSkillTag(skill.name)}
+                          className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
+                            recSkillTags.includes(skill.name)
+                              ? "bg-primary text-primary-foreground"
+                              : "bg-secondary hover:bg-secondary/80"
+                          }`}
+                        >
+                          {skill.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-3 p-4 border-t border-border">
+                <button
+                  onClick={() => setShowRecModal(false)}
+                  disabled={recSubmitting}
+                  className="px-4 py-2 rounded-full font-medium border border-border hover:bg-muted transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRecSubmit}
+                  disabled={recSubmitting || recText.trim().length < 10}
+                  className="px-6 py-2 rounded-full font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {recSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : myRecommendation ? (
+                    "Update"
+                  ) : (
+                    "Submit"
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
