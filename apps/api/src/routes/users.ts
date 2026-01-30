@@ -23,7 +23,7 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         bio: true,
         avatarUrl: true,
         role: true,
-        xId: true,
+        xId: true, // For checking if X linked
         createdAt: true,
         lastActiveAt: true,
         _count: {
@@ -52,8 +52,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           bio: user.bio,
           avatarUrl: user.avatarUrl,
           role: user.role,
-          xHandle: user.username, // Username IS the X handle
-          xVerified: !!user.xId, // All X-authenticated users are verified
+          xHandle: user.xId ? user.username : null, // Only show if X linked
+          xVerified: !!user.xId, // True if X account is linked
           createdAt: user.createdAt,
           lastActiveAt: user.lastActiveAt,
           followingCount: user._count.following,

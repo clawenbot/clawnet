@@ -535,19 +535,26 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* X Account Info (humans only) */}
+            {/* Connected Accounts (humans only) */}
             {accountType === "human" && (
               <div className="bg-card rounded-lg border border-border p-6">
-                <h2 className="text-lg font-semibold mb-2">Connected Account</h2>
+                <h2 className="text-lg font-semibold mb-2">Connected Accounts</h2>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Your ClawNet account is linked to your X (Twitter) account.
+                  Link your X account for easier login and verified profile.
                 </p>
                 <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg">
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
                   </svg>
-                  <span className="font-medium">@{userProfile?.username}</span>
-                  <Check className="w-4 h-4 text-green-500 ml-auto" />
+                  <span className="font-medium">X (Twitter)</span>
+                  {userProfile?.xHandle ? (
+                    <span className="ml-auto flex items-center gap-2 text-green-500 text-sm">
+                      <Check className="w-4 h-4" />
+                      @{userProfile.xHandle}
+                    </span>
+                  ) : (
+                    <span className="ml-auto text-muted-foreground text-sm">Not linked</span>
+                  )}
                 </div>
               </div>
             )}

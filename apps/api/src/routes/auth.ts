@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 import { prisma } from "../lib/prisma.js";
@@ -25,7 +27,7 @@ setInterval(() => {
       oauthStates.delete(key);
     }
   }
-}, 60000); // Every minute
+}, 60000);
 
 // Generate PKCE code verifier and challenge
 function generatePKCE() {
@@ -36,6 +38,158 @@ function generatePKCE() {
     .digest("base64url");
   return { codeVerifier, codeChallenge };
 }
+
+// =============================================
+// PASSWORD AUTH (legacy/fallback)
+// =============================================
+
+const registerSchema = z.object({
+  username: z
+    .string()
+    .min(3)
+    .max(24)
+    .regex(/^[a-zA-Z0-9_]+$/, "Only alphanumeric and underscores"),
+  password: z.string().min(8).max(128),
+  displayName: z.string().min(1).max(50),
+});
+
+const loginSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
+// POST /api/v1/auth/register - Register with password
+router.post("/register", async (req, res) => {
+  try {
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const { username, password, displayName } = parsed.data;
+
+    // Check if username taken
+    const [existingUser, existingAgent] = await Promise.all([
+      prisma.user.findUnique({ where: { username } }),
+      prisma.agent.findUnique({ where: { name: username } }),
+    ]);
+
+    if (existingUser || existingAgent) {
+      return res.status(409).json({
+        success: false,
+        error: "Username already taken",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const user = await prisma.user.create({
+      data: {
+        username,
+        passwordHash,
+        displayName,
+      },
+    });
+
+    const sessionToken = `clawnet_session_${nanoid(48)}`;
+    const tokenHash = hashToken(sessionToken);
+
+    await prisma.userSession.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role,
+      },
+      token: sessionToken,
+      expiresAt: new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({ success: false, error: "Registration failed" });
+  }
+});
+
+// POST /api/v1/auth/login - Login with password
+router.post("/login", async (req, res) => {
+  try {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid credentials",
+      });
+    }
+
+    const { username, password } = parsed.data;
+
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user || !user.passwordHash) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid username or password",
+      });
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid username or password",
+      });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastActiveAt: new Date() },
+    });
+
+    const sessionToken = `clawnet_session_${nanoid(48)}`;
+    const tokenHash = hashToken(sessionToken);
+
+    await prisma.userSession.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
+      },
+    });
+
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        xLinked: !!user.xId,
+      },
+      token: sessionToken,
+      expiresAt: new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ success: false, error: "Login failed" });
+  }
+});
+
+// =============================================
+// X OAUTH (preferred method)
+// =============================================
 
 // GET /api/v1/auth/x - Start X OAuth flow
 router.get("/x", (_req, res) => {
@@ -49,13 +203,11 @@ router.get("/x", (_req, res) => {
   const state = nanoid(32);
   const { codeVerifier, codeChallenge } = generatePKCE();
 
-  // Store state with 10 minute expiry
   oauthStates.set(state, {
     codeVerifier,
     expiresAt: Date.now() + 10 * 60 * 1000,
   });
 
-  // Build X OAuth URL
   const params = new URLSearchParams({
     response_type: "code",
     client_id: X_CLIENT_ID,
@@ -87,7 +239,6 @@ router.post("/x/callback", async (req, res) => {
       });
     }
 
-    // Verify state and get code verifier
     const storedState = oauthStates.get(state);
     if (!storedState || storedState.expiresAt < Date.now()) {
       oauthStates.delete(state);
@@ -163,23 +314,29 @@ router.post("/x/callback", async (req, res) => {
     const xId = xUser.id;
     const xHandle = xUser.username;
     const displayName = xUser.name;
-    const avatarUrl = xUser.profile_image_url?.replace("_normal", "_400x400"); // Get larger image
+    const avatarUrl = xUser.profile_image_url?.replace("_normal", "_400x400");
     const bio = xUser.description || null;
-
-    // Calculate token expiry
     const xTokenExpiry = new Date(Date.now() + expires_in * 1000);
 
-    // Find or create user
-    let user = await prisma.user.findUnique({ where: { xId } });
+    // Find existing user by xId or username
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { xId },
+          { username: xHandle },
+        ],
+      },
+    });
 
     if (user) {
-      // Update existing user with latest X data
+      // Update existing user with X data
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
           username: xHandle,
           displayName,
           avatarUrl,
+          xId,
           xAccessToken: access_token,
           xRefreshToken: refresh_token || user.xRefreshToken,
           xTokenExpiry,
@@ -187,7 +344,7 @@ router.post("/x/callback", async (req, res) => {
         },
       });
     } else {
-      // Check if username (X handle) conflicts with an agent
+      // Check if username conflicts with an agent
       const existingAgent = await prisma.agent.findUnique({
         where: { name: xHandle },
       });
@@ -199,7 +356,7 @@ router.post("/x/callback", async (req, res) => {
         });
       }
 
-      // Create new user
+      // Create new user via X
       user = await prisma.user.create({
         data: {
           username: xHandle,
@@ -214,7 +371,6 @@ router.post("/x/callback", async (req, res) => {
       });
     }
 
-    // Create session
     const sessionToken = `clawnet_session_${nanoid(48)}`;
     const tokenHash = hashToken(sessionToken);
 
@@ -235,6 +391,7 @@ router.post("/x/callback", async (req, res) => {
         avatarUrl: user.avatarUrl,
         bio: user.bio,
         role: user.role,
+        xLinked: true,
       },
       token: sessionToken,
       expiresAt: new Date(Date.now() + SESSION_DURATION_MS).toISOString(),
@@ -245,7 +402,11 @@ router.post("/x/callback", async (req, res) => {
   }
 });
 
-// POST /api/v1/auth/logout - Logout (invalidate session)
+// =============================================
+// COMMON ENDPOINTS
+// =============================================
+
+// POST /api/v1/auth/logout
 router.post("/logout", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
@@ -256,7 +417,7 @@ router.post("/logout", async (req, res) => {
   res.json({ success: true });
 });
 
-// GET /api/v1/auth/me - Get current user
+// GET /api/v1/auth/me
 router.get("/me", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) {
@@ -280,12 +441,10 @@ router.get("/me", async (req, res) => {
 
   const user = session.user;
 
-  // Get following count
   const followingCount = await prisma.follow.count({
     where: { userId: user.id },
   });
 
-  // Get owned agents
   const ownedAgents = await prisma.agent.findMany({
     where: { ownerId: user.id },
     select: { id: true, name: true, avatarUrl: true },
@@ -300,11 +459,19 @@ router.get("/me", async (req, res) => {
       bio: user.bio,
       avatarUrl: user.avatarUrl,
       role: user.role,
-      xHandle: user.username, // Username IS the X handle now
+      xLinked: !!user.xId,
       createdAt: user.createdAt,
       followingCount,
       ownedAgents,
     },
+  });
+});
+
+// GET /api/v1/auth/x/status - Check if X OAuth is available
+router.get("/x/status", (_req, res) => {
+  res.json({
+    success: true,
+    available: !!X_CLIENT_ID,
   });
 });
 

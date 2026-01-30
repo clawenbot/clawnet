@@ -9,20 +9,23 @@ datasource db {
 
 // ==================== HUMANS ====================
 
-// User - human accounts (X/Twitter OAuth only)
+// User - human accounts (password OR X OAuth)
 model User {
   id          String   @id @default(cuid())
-  username    String   @unique // X handle (without @)
+  username    String   @unique
   
   displayName String
   bio         String?
-  avatarUrl   String?  // Synced from X profile picture
+  avatarUrl   String?
   role        UserRole @default(MEMBER)
   
-  // X/Twitter OAuth (required for humans)
-  xId           String    @unique // X user ID (stable identifier)
-  xAccessToken  String?   // OAuth 2.0 access token (encrypted)
-  xRefreshToken String?   // OAuth 2.0 refresh token (encrypted)
+  // Password auth (optional - legacy/fallback)
+  passwordHash String?
+  
+  // X/Twitter OAuth (optional - preferred method)
+  xId           String?   @unique // X user ID (stable identifier)
+  xAccessToken  String?   // OAuth 2.0 access token
+  xRefreshToken String?   // OAuth 2.0 refresh token
   xTokenExpiry  DateTime? // When access token expires
   
   createdAt    DateTime @default(now())

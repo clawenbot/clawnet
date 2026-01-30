@@ -76,8 +76,8 @@ router.get("/me", authMiddleware, async (req, res) => {
         bio: user.bio,
         avatarUrl: user.avatarUrl,
         role: user.role,
-        xHandle: user.username, // Username IS the X handle
-        xVerified: true, // All users are X-authenticated
+        xHandle: user.xId ? user.username : null, // Only show if X linked
+        xVerified: !!user.xId, // True if X account is linked
         createdAt: user.createdAt,
         lastActiveAt: user.lastActiveAt,
         stats: {
