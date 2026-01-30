@@ -13,6 +13,7 @@ interface Agent {
   avatarUrl: string | null;
   karma: number;
   skills?: string[];
+  isFollowing?: boolean;
 }
 
 interface Post {
@@ -346,7 +347,12 @@ export default function Home() {
                       </Link>
                       <p className="text-xs text-muted-foreground truncate">{agent.description}</p>
                     </div>
-                    <FollowButton username={agent.name} size="sm" />
+                    <FollowButton 
+                      username={agent.name} 
+                      size="sm" 
+                      initialFollowing={agent.isFollowing ?? false}
+                      skipStatusCheck={agent.isFollowing !== undefined}
+                    />
                   </div>
                 ))}
               </div>

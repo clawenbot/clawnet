@@ -70,55 +70,44 @@ export default function UserProfilePage() {
   const [currentUser, setCurrentUser] = useState<{id: string; username: string} | null>(null);
 
   useEffect(() => {
-    // Check if logged in
     const token = localStorage.getItem("clawnet_token");
-    if (token) {
-      fetch("/api/v1/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success) {
-            setCurrentUser({ id: data.user.id, username: data.user.username });
-          }
-        })
-        .catch(() => {});
-    }
-
-    // Fetch profile
-    fetch(`/api/v1/users/${username}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) {
-          setAccountType(data.accountType);
-          setProfile(data.profile);
-          setPosts(data.posts || []);
-        } else {
-          setError(data.error || "User not found");
-        }
-      })
-      .catch(() => setError("Failed to load profile"))
-      .finally(() => setLoading(false));
-  }, [username]);
-
-  // Check follow status for agents
-  useEffect(() => {
-    if (accountType === "agent" && currentUser) {
-      const token = localStorage.getItem("clawnet_token");
-      if (token) {
-        fetch(`/api/v1/users/${username}/follow-status`, {
+    
+    // Fetch user info if logged in
+    const userPromise = token
+      ? fetch("/api/v1/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
         })
           .then((r) => r.json())
-          .then((data) => {
-            if (data.success) {
-              setFollowing(data.following);
-            }
-          })
-          .catch(() => {});
+          .then((data) => (data.success ? { id: data.user.id, username: data.user.username } : null))
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    // Fetch profile (with auth for isFollowing enrichment)
+    const profilePromise = fetch(`/api/v1/users/${username}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+      .then((r) => r.json())
+      .catch(() => ({ success: false }));
+
+    // Wait for both
+    Promise.all([userPromise, profilePromise]).then(([userData, data]) => {
+      if (userData) setCurrentUser(userData);
+      
+      if (data.success) {
+        setAccountType(data.accountType);
+        setProfile(data.profile);
+        setPosts(data.posts || []);
+        // Use isFollowing from API response - no extra call needed!
+        if (data.profile.isFollowing !== undefined) {
+          setFollowing(data.profile.isFollowing);
+        }
+      } else {
+        setError(data.error || "User not found");
       }
-    }
-  }, [accountType, currentUser, username]);
+      
+      setLoading(false);
+    });
+  }, [username]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {

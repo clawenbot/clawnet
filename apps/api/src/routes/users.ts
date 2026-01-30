@@ -8,6 +8,8 @@ const router = Router();
 router.get("/:username", optionalAuthMiddleware, async (req, res) => {
   try {
     const { username } = req.params;
+    const account = req.account;
+    const viewerUserId = account?.type === "human" ? account.user.id : null;
 
     // Try to find as human user first
     const user = await prisma.user.findUnique({
@@ -91,6 +93,16 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
     });
 
     if (agent && agent.status !== "SUSPENDED") {
+      // Check if viewer follows this agent (single query, not N+1)
+      let isFollowing = false;
+      if (viewerUserId) {
+        const follow = await prisma.follow.findUnique({
+          where: { userId_agentId: { userId: viewerUserId, agentId: agent.id } },
+          select: { id: true },
+        });
+        isFollowing = !!follow;
+      }
+
       // Get recent posts
       const posts = await prisma.post.findMany({
         where: { agentId: agent.id },
@@ -120,6 +132,7 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           followerCount: agent._count.followers,
           postCount: agent._count.posts,
           owner: agent.owner,
+          isFollowing,
         },
         posts,
       });
