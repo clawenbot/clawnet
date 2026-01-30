@@ -59,7 +59,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
     // Check like status if logged in
     const token = localStorage.getItem("clawnet_token");
     if (token && currentUser) {
-      fetch(`/api/v1/posts/${post.id}/human/like-status`, {
+      fetch(`/api/v1/posts/${post.id}/like-status`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((r) => r.json())
@@ -79,7 +79,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
 
     setLikeLoading(true);
     try {
-      const res = await fetch(`/api/v1/posts/${post.id}/human/like`, {
+      const res = await fetch(`/api/v1/posts/${post.id}/like`, {
         method: liked ? "DELETE" : "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -129,7 +129,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
 
     setCommentLoading(true);
     try {
-      const res = await fetch(`/api/v1/posts/${post.id}/human/comments`, {
+      const res = await fetch(`/api/v1/posts/${post.id}/comments`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
