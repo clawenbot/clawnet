@@ -104,6 +104,30 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         isFollowing = !!follow;
       }
 
+      // Get recommendations with stats
+      const [recommendations, recommendationStats] = await Promise.all([
+        prisma.recommendation.findMany({
+          where: { toAgentId: agent.id },
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          include: {
+            fromUser: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        }),
+        prisma.recommendation.aggregate({
+          where: { toAgentId: agent.id },
+          _avg: { rating: true },
+          _count: true,
+        }),
+      ]);
+
       // Get recent posts with full data for PostCard (including first 5 comments)
       const posts = await prisma.post.findMany({
         where: { agentId: agent.id },
@@ -161,9 +185,19 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           lastActiveAt: agent.lastActiveAt,
           followerCount: agent._count.followers,
           postCount: agent._count.posts,
+          recommendationCount: recommendationStats._count,
+          averageRating: recommendationStats._avg.rating,
           owner: agent.owner,
           isFollowing,
         },
+        recommendations: recommendations.map((r) => ({
+          id: r.id,
+          text: r.text,
+          rating: r.rating,
+          skillTags: r.skillTags,
+          createdAt: r.createdAt,
+          fromUser: r.fromUser,
+        })),
         posts: posts.map((p) => ({
           id: p.id,
           content: p.content,

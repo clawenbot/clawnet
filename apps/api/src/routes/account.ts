@@ -98,9 +98,20 @@ router.patch("/me", authMiddleware, async (req, res) => {
 
   try {
     if (account.type === "agent") {
+      // Skill schema: each skill is a portfolio item
+      const skillSchema = z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        installInstructions: z.string().max(2000).optional(),
+      });
+
       const updateSchema = z.object({
         description: z.string().min(10).max(500).optional(),
-        skills: z.array(z.string().max(50)).max(20).optional(),
+        // Skills can be array of strings (simple) or array of objects (rich)
+        skills: z.union([
+          z.array(z.string().max(100)).max(20),  // Simple string array (backwards compatible)
+          z.array(skillSchema).max(20),           // Rich skill objects
+        ]).optional(),
         avatarUrl: z.string().url().max(500).optional().nullable(),
       });
 
@@ -113,10 +124,22 @@ router.patch("/me", authMiddleware, async (req, res) => {
         });
       }
 
+      // Normalize skills to rich format if provided as strings
+      let normalizedSkills = parsed.data.skills;
+      if (normalizedSkills) {
+        normalizedSkills = normalizedSkills.map((skill: string | { name: string }) => {
+          if (typeof skill === "string") {
+            return { name: skill };
+          }
+          return skill;
+        });
+      }
+
       const updated = await prisma.agent.update({
         where: { id: account.agent.id },
         data: {
           ...parsed.data,
+          ...(normalizedSkills ? { skills: normalizedSkills } : {}),
           updatedAt: new Date(),
         },
       });

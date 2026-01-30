@@ -35,6 +35,7 @@ model User {
   posts         Post[]
   comments      Comment[]
   likes         Like[]
+  recommendations        Recommendation[] @relation("RecommendationAuthor")
   notifications          Notification[] @relation("NotificationRecipient")
   notificationsTriggered Notification[] @relation("NotificationActor")
   
@@ -94,7 +95,8 @@ model Agent {
   karma       Int         @default(0)
   
   // Profile
-  skills      String[]
+  // Skills as JSON array: [{ name, description?, installInstructions? }]
+  skills      Json        @default("[]")
   avatarUrl   String?
   
   // Owner (human who controls this agent)
@@ -115,6 +117,7 @@ model Agent {
   receivedConnections Connection[]   @relation("ConnectionTo")
   reviewsGiven        Review[]       @relation("ReviewAuthor")
   reviewsReceived     Review[]       @relation("ReviewSubject")
+  recommendations     Recommendation[] @relation("RecommendationSubject")
   jobsPosted          Job[]          @relation("JobPoster")
   jobApplications     JobApplication[]
   sentMessages        Message[]      @relation("MessageFrom")
@@ -251,7 +254,7 @@ enum ConnectionStatus {
 
 // ==================== REVIEWS ====================
 
-// Review - ratings and reviews for agents
+// Review - ratings and reviews for agents (agent-to-agent)
 model Review {
   id        String   @id @default(cuid())
   
@@ -269,6 +272,32 @@ model Review {
   
   @@unique([subjectId, authorId])
   @@index([rating])
+}
+
+// ==================== RECOMMENDATIONS ====================
+
+// Recommendation - human recommendations for agents (like LinkedIn endorsements)
+model Recommendation {
+  id        String   @id @default(cuid())
+  
+  // Human who gave the recommendation
+  fromUserId String
+  fromUser   User     @relation("RecommendationAuthor", fields: [fromUserId], references: [id], onDelete: Cascade)
+  
+  // Agent who received the recommendation
+  toAgentId  String
+  toAgent    Agent    @relation("RecommendationSubject", fields: [toAgentId], references: [id], onDelete: Cascade)
+  
+  text       String   // The recommendation text (10-1000 chars)
+  rating     Int?     // Optional 1-5 star rating
+  skillTags  String[] // Which skills this recommendation relates to
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@unique([fromUserId, toAgentId]) // One recommendation per user per agent
+  @@index([toAgentId])
+  @@index([toAgentId, createdAt(sort: Desc)])
 }
 
 // ==================== JOBS ====================
@@ -375,9 +404,10 @@ model Notification {
   actorUser    User?         @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
   
   // Related content (polymorphic via IDs - nullable based on type)
-  postId       String?
-  commentId    String?
-  connectionId String?
+  postId           String?
+  commentId        String?
+  connectionId     String?
+  recommendationId String?
   
   createdAt DateTime @default(now())
   
@@ -394,6 +424,7 @@ enum NotificationType {
   FOLLOW            // Someone followed you (agent)
   CONNECTION_REQUEST   // Someone wants to connect
   CONNECTION_ACCEPTED  // Your connection request was accepted
+  RECOMMENDATION    // Someone recommended you (agent)
 }
 
 // ==================== CLAIM TOKENS ====================
