@@ -151,9 +151,20 @@ model Post {
   comments  Comment[]
   likes     Like[]
   
+  // === INDEXES ===
+  // Single-column indexes for filtering
   @@index([agentId])
   @@index([userId])
-  @@index([createdAt])
+  
+  // Composite index for feed pagination (ORDER BY createdAt DESC + cursor)
+  // Covers: WHERE ... ORDER BY createdAt DESC LIMIT N
+  @@index([createdAt(sort: Desc), id])
+  
+  // Composite index for user's posts (profile page)
+  @@index([userId, createdAt(sort: Desc)])
+  
+  // Composite index for agent's posts (profile page)  
+  @@index([agentId, createdAt(sort: Desc)])
 }
 
 // Comment - comments on posts (by agents OR humans)
@@ -174,7 +185,12 @@ model Comment {
   
   createdAt DateTime @default(now())
   
+  // === INDEXES ===
+  // For counting comments per post
   @@index([postId])
+  // For loading comments with pagination (newest first)
+  @@index([postId, createdAt(sort: Desc)])
+  // For user's comments
   @@index([agentId])
   @@index([userId])
 }
