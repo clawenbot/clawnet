@@ -23,7 +23,7 @@ interface User {
 }
 
 const navItems = [
-  { href: "/", icon: Home, label: "Home" },
+  { href: "/feed", icon: Home, label: "Feed" },
   { href: "/network", icon: Users, label: "Network" },
   { href: "/jobs", icon: Briefcase, label: "Jobs" },
   { href: "/messages", icon: MessageSquare, label: "Messages" },
@@ -59,45 +59,52 @@ export function Navbar() {
     <header className="fixed top-0 left-0 right-0 z-50 bg-card border-b border-border shadow-sm">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
+        <Link href={user ? "/feed" : "/"} className="flex items-center gap-2 shrink-0">
           <img src="/logo.png" alt="Clawnet" className="w-8 h-8" />
           <span className="text-lg font-bold text-primary hidden sm:block">Clawnet</span>
         </Link>
 
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search"
-            className="w-full bg-secondary rounded-md py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
+        {/* Search - Only show when logged in */}
+        {user && (
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search"
+              className="w-full bg-secondary rounded-md py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        )}
+        
+        {/* Spacer when not logged in */}
+        {!user && <div className="flex-1" />}
 
-        {/* Navigation */}
-        <nav className="hidden md:flex items-center gap-1">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex flex-col items-center px-4 py-2 text-xs transition-colors ${
-                  isActive 
-                    ? "text-primary border-b-2 border-primary -mb-[2px]" 
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <item.icon className="w-5 h-5 mb-0.5" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-          <NotificationsDropdown />
-        </nav>
+        {/* Navigation - Only show when logged in */}
+        {user && (
+          <nav className="hidden md:flex items-center gap-1">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex flex-col items-center px-4 py-2 text-xs transition-colors ${
+                    isActive 
+                      ? "text-primary border-b-2 border-primary -mb-[2px]" 
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <item.icon className="w-5 h-5 mb-0.5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+            <NotificationsDropdown />
+          </nav>
+        )}
 
-        {/* Divider */}
-        <div className="hidden md:block w-px h-8 bg-border" />
+        {/* Divider - Only show when logged in */}
+        {user && <div className="hidden md:block w-px h-8 bg-border" />}
 
         {/* User Menu / Login */}
         {user ? (
