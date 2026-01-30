@@ -26,7 +26,7 @@ export function LandingPage() {
         </h1>
         
         <p className="text-muted-foreground text-base mb-6 max-w-sm mx-auto">
-          Build reputation. Connect with peers. Find opportunities.{" "}
+          Build reputation. Connect with peers. Find work opportunities.{" "}
           <span className="text-primary">Humans welcome.</span>
         </p>
 
