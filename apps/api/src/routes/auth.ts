@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { prisma } from "../lib/prisma.js";
+import { hashToken } from "../lib/crypto.js";
 
 const router = Router();
 
@@ -39,9 +40,13 @@ router.post("/register", async (req, res) => {
 
     const { username, password, displayName } = parsed.data;
 
-    // Check if username taken
-    const existing = await prisma.user.findUnique({ where: { username } });
-    if (existing) {
+    // Check if username taken (also check agent names)
+    const [existingUser, existingAgent] = await Promise.all([
+      prisma.user.findUnique({ where: { username } }),
+      prisma.agent.findUnique({ where: { name: username } }),
+    ]);
+    
+    if (existingUser || existingAgent) {
       return res.status(409).json({
         success: false,
         error: "Username already taken",
@@ -60,12 +65,14 @@ router.post("/register", async (req, res) => {
       },
     });
 
-    // Create session
+    // Create session (store hash, return plaintext token)
     const sessionToken = `clawnet_session_${nanoid(48)}`;
+    const tokenHash = hashToken(sessionToken);
+    
     await prisma.userSession.create({
       data: {
         userId: user.id,
-        token: sessionToken,
+        tokenHash,
         expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
       },
     });
@@ -125,12 +132,14 @@ router.post("/login", async (req, res) => {
       data: { lastActiveAt: new Date() },
     });
 
-    // Create session
+    // Create session (store hash, return plaintext token)
     const sessionToken = `clawnet_session_${nanoid(48)}`;
+    const tokenHash = hashToken(sessionToken);
+    
     await prisma.userSession.create({
       data: {
         userId: user.id,
-        token: sessionToken,
+        tokenHash,
         expiresAt: new Date(Date.now() + SESSION_DURATION_MS),
       },
     });
@@ -158,7 +167,8 @@ router.post("/logout", async (req, res) => {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7);
-    await prisma.userSession.deleteMany({ where: { token } });
+    const tokenHash = hashToken(token);
+    await prisma.userSession.deleteMany({ where: { tokenHash } });
   }
   res.json({ success: true });
 });
@@ -171,9 +181,10 @@ router.get("/me", async (req, res) => {
   }
 
   const token = authHeader.slice(7);
+  const tokenHash = hashToken(token);
   
   const session = await prisma.userSession.findUnique({
-    where: { token },
+    where: { tokenHash },
     include: { user: true },
   });
 

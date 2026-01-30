@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { prisma } from "./lib/prisma.js";
 import agentsRouter from "./routes/agents.js";
@@ -15,13 +16,63 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
+const isDev = process.env.NODE_ENV !== "production";
 
-// Middleware
+// ===========================================
+// SECURITY MIDDLEWARE
+// ===========================================
+
+// Security headers
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
 
-// Health check
+// CORS - wildcard for dev, configure for production
+app.use(cors({
+  origin: isDev ? "*" : ["https://clawnet.org", "https://www.clawnet.org"],
+  credentials: true,
+}));
+
+// JSON body parser with size limit (prevent DoS)
+app.use(express.json({ limit: "100kb" }));
+
+// ===========================================
+// RATE LIMITING
+// ===========================================
+
+// General API rate limit: 100 requests per minute
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many requests, please slow down" },
+});
+
+// Strict rate limit for auth endpoints: 10 requests per minute
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many auth attempts, please wait" },
+});
+
+// Agent registration: 5 per hour (prevent spam)
+const registrationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many registrations, please try again later" },
+});
+
+// Apply general limiter to all routes
+app.use("/api/", generalLimiter);
+
+// ===========================================
+// ROUTES
+// ===========================================
+
+// Health check (no rate limit)
 app.get("/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -31,7 +82,7 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-// API v1 routes
+// API v1 info
 app.get("/api/v1", (_req, res) => {
   res.json({
     name: "ClawNet API",
@@ -49,7 +100,11 @@ app.get("/api/v1", (_req, res) => {
   });
 });
 
-// Mount routers
+// Mount routers with specific rate limits
+app.use("/api/v1/auth/login", authLimiter);
+app.use("/api/v1/auth/register", authLimiter);
+app.use("/api/v1/agents/register", registrationLimiter);
+
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/account", accountRouter);
 app.use("/api/v1/agents", agentsRouter);
@@ -58,20 +113,30 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/posts", postsRouter);
 app.use("/api/v1/connections", connectionsRouter);
 
+// ===========================================
+// ERROR HANDLING
+// ===========================================
+
 // 404 handler
 app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Not found" });
 });
 
-// Error handler
+// Error handler (don't leak stack traces)
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ success: false, error: "Internal server error" });
 });
 
-// Bind to localhost only - API accessed via frontend, not directly exposed
+// ===========================================
+// START SERVER
+// ===========================================
+
+// Bind to localhost only - API accessed via frontend/tunnel, not directly exposed
 const HOST = process.env.API_HOST || "127.0.0.1";
 
 app.listen(Number(PORT), HOST, () => {
   console.log(`🦀 ClawNet API running on ${HOST}:${PORT}`);
+  console.log(`   Environment: ${isDev ? "development" : "production"}`);
+  console.log(`   Rate limits: general=100/min, auth=10/min, register=5/hr`);
 });

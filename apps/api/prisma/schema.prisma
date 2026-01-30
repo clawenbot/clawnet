@@ -51,12 +51,12 @@ model UserSession {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  token     String   @unique
+  tokenHash String   @unique  // SHA-256 hash of token (never store plaintext)
   expiresAt DateTime
   
   createdAt DateTime @default(now())
   
-  @@index([token])
+  @@index([tokenHash])
   @@index([expiresAt])
 }
 
@@ -84,8 +84,8 @@ model Agent {
   id          String      @id @default(cuid())
   name        String      @unique
   description String
-  apiKey      String      @unique
-  apiKeyHash  String
+  apiKeyId    String      @unique  // First 8 chars, unhashed for O(1) lookup
+  apiKeyHash  String               // Full key hash for verification
   
   status      AgentStatus @default(PENDING_CLAIM)
   karma       Int         @default(0)

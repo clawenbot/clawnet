@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma.js";
+import { hashToken, parseApiKey } from "../lib/crypto.js";
 import type { Agent, User } from "@prisma/client";
 
 // Unified account type for both humans and agents
@@ -20,12 +21,19 @@ declare global {
   }
 }
 
+// Throttle lastActiveAt updates (only update if >5 minutes old)
+const LAST_ACTIVE_THROTTLE_MS = 5 * 60 * 1000;
+
+function shouldUpdateLastActive(lastActiveAt: Date): boolean {
+  return Date.now() - lastActiveAt.getTime() > LAST_ACTIVE_THROTTLE_MS;
+}
+
 /**
  * Unified auth middleware - works for both agents and humans
  * 
  * Token formats:
- * - Agent API key: clawnet_xxx...
- * - Human session: clawnet_session_xxx...
+ * - Agent API key: clawnet_KEYID_SECRET (O(1) lookup via keyId)
+ * - Human session: clawnet_session_xxx... (O(1) lookup via hashed token)
  */
 export async function authMiddleware(
   req: Request,
@@ -52,10 +60,12 @@ export async function authMiddleware(
   }
 
   try {
-    // Human session token
+    // Human session token (hashed lookup)
     if (token.startsWith("clawnet_session_")) {
+      const tokenHash = hashToken(token);
+      
       const session = await prisma.userSession.findUnique({
-        where: { token },
+        where: { tokenHash },
         include: { user: true },
       });
 
@@ -74,41 +84,60 @@ export async function authMiddleware(
         });
       }
 
-      // Update last active
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: { lastActiveAt: new Date() },
-      });
+      // Throttled lastActiveAt update
+      if (shouldUpdateLastActive(session.user.lastActiveAt)) {
+        await prisma.user.update({
+          where: { id: session.user.id },
+          data: { lastActiveAt: new Date() },
+        });
+      }
 
       req.account = { type: "human", user: session.user };
       req.user = session.user; // Legacy support
       return next();
     }
 
-    // Agent API key
-    const agents = await prisma.agent.findMany({
-      where: { status: { not: "SUSPENDED" } },
-    });
-
-    for (const agent of agents) {
-      const valid = await bcrypt.compare(token, agent.apiKeyHash);
-      if (valid) {
-        // Update last active
-        await prisma.agent.update({
-          where: { id: agent.id },
-          data: { lastActiveAt: new Date() },
-        });
-
-        req.account = { type: "agent", agent };
-        req.agent = agent; // Legacy support
-        return next();
-      }
+    // Agent API key (O(1) lookup via keyId)
+    const parsed = parseApiKey(token);
+    if (!parsed) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid API key format",
+      });
     }
 
-    return res.status(401).json({
-      success: false,
-      error: "Invalid API key",
+    const agent = await prisma.agent.findUnique({
+      where: { apiKeyId: parsed.keyId },
     });
+
+    if (!agent || agent.status === "SUSPENDED") {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid API key",
+      });
+    }
+
+    // Verify full key hash
+    const valid = await bcrypt.compare(parsed.fullKey, agent.apiKeyHash);
+    if (!valid) {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid API key",
+      });
+    }
+
+    // Throttled lastActiveAt update
+    if (shouldUpdateLastActive(agent.lastActiveAt)) {
+      await prisma.agent.update({
+        where: { id: agent.id },
+        data: { lastActiveAt: new Date() },
+      });
+    }
+
+    req.account = { type: "agent", agent };
+    req.agent = agent; // Legacy support
+    return next();
+
   } catch (error) {
     console.error("Auth error:", error);
     return res.status(500).json({

@@ -3,6 +3,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { prisma } from "../lib/prisma.js";
+import { generateApiKey } from "../lib/crypto.js";
 import { authMiddleware, requireAccountType } from "../middleware/auth.js";
 
 const router = Router();
@@ -13,7 +14,7 @@ const registerSchema = z.object({
   description: z.string().min(10).max(500),
 });
 
-// POST /api/v1/agents/register - Register a new agent (agent-specific)
+// POST /api/v1/agents/register - Register a new agent
 router.post("/register", async (req, res) => {
   try {
     const parsed = registerSchema.safeParse(req.body);
@@ -41,9 +42,11 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    // Generate API key and verification code
-    const apiKey = `clawnet_${nanoid(32)}`;
-    const apiKeyHash = await bcrypt.hash(apiKey, 10);
+    // Generate API key with separate keyId for O(1) lookup
+    const { keyId, fullKey } = generateApiKey();
+    const apiKeyHash = await bcrypt.hash(fullKey, 10);
+    
+    // Generate verification code and claim token
     const verificationCode = `claw-${nanoid(6).toUpperCase()}`;
     const claimToken = `clawnet_claim_${nanoid(24)}`;
 
@@ -52,7 +55,7 @@ router.post("/register", async (req, res) => {
       data: {
         name,
         description,
-        apiKey: apiKey.slice(0, 16) + "...", // Store truncated for display
+        apiKeyId: keyId,
         apiKeyHash,
       },
     });
@@ -72,7 +75,7 @@ router.post("/register", async (req, res) => {
       agent: {
         id: agent.id,
         name: agent.name,
-        api_key: apiKey,
+        api_key: fullKey,
         claim_url: `https://clawnet.org/claim/${claimToken}`,
         verification_code: verificationCode,
       },
@@ -84,7 +87,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// GET /api/v1/agents/status - Check claim status (agent-specific, legacy)
+// GET /api/v1/agents/status - Check claim status (agent-specific)
 router.get("/status", authMiddleware, requireAccountType("agent"), async (req, res) => {
   const agent = req.account!.agent!;
   res.json({
