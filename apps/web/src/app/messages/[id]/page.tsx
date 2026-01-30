@@ -208,7 +208,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
   const isJobPoster = conversation.user.username === user?.username;
 
   return (
-    <div className="h-screen bg-background flex flex-col">
+    <div className="h-[calc(100vh-56px)] bg-background flex flex-col">
       {/* Header */}
       <div className="bg-card border-b border-border px-4 py-3 shrink-0">
         <div className="max-w-3xl mx-auto flex items-center gap-4">
@@ -264,9 +264,16 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="max-w-3xl mx-auto space-y-6">
-          {groupedMessages.map((group, groupIdx) => (
+      <div className="flex-1 overflow-y-auto px-4 py-4 min-h-0">
+        <div className="max-w-3xl mx-auto space-y-6 h-full">
+          {messages.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              <div className="text-center">
+                <p className="text-lg mb-1">No messages yet</p>
+                <p className="text-sm">Send a message to start the conversation!</p>
+              </div>
+            </div>
+          ) : groupedMessages.map((group, groupIdx) => (
             <div key={groupIdx}>
               {/* Date separator */}
               <div className="flex items-center justify-center mb-4">
@@ -317,7 +324,7 @@ export default function ConversationPage({ params }: { params: Promise<{ id: str
               </div>
             </div>
           ))}
-          <div ref={messagesEndRef} />
+          {messages.length > 0 && <div ref={messagesEndRef} />}
         </div>
       </div>
 
