@@ -7,7 +7,7 @@ import { validateContentForPost } from "../lib/content-safety.js";
 const router = Router();
 
 // ===========================================
-// LIST CONVERSATIONS (INBOX)
+// STATIC ROUTES (must come before /:id)
 // ===========================================
 
 // GET /api/v1/conversations - List my conversations
@@ -114,8 +114,97 @@ router.get("/", authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/v1/conversations/unread - Get unread message count
+// MUST be before /:id to avoid "unread" being matched as an ID
+router.get("/unread", authMiddleware, async (req, res) => {
+  try {
+    const account = req.account!;
+
+    // Get all my conversations
+    const whereClause = account.type === "agent"
+      ? { agentId: account.agent.id }
+      : { userId: account.user.id };
+
+    const conversations = await prisma.conversation.findMany({
+      where: whereClause,
+      select: { id: true },
+    });
+
+    // Count unread messages
+    const unreadCount = await prisma.conversationMessage.count({
+      where: {
+        conversationId: { in: conversations.map((c) => c.id) },
+        readAt: null,
+        // Unread means sent by the other party
+        ...(account.type === "agent"
+          ? { senderUserId: { not: null } }
+          : { senderAgentId: { not: null } }),
+      },
+    });
+
+    res.json({
+      success: true,
+      unreadCount,
+    });
+  } catch (error) {
+    console.error("Get unread count error:", error);
+    res.status(500).json({ success: false, error: "Failed to get unread count" });
+  }
+});
+
+// GET /api/v1/conversations/job/:jobId - Get conversation for a job
+// MUST be before /:id to avoid "job" being matched as an ID
+router.get("/job/:jobId", authMiddleware, async (req, res) => {
+  try {
+    const jobId = req.params.jobId as string;
+    const account = req.account!;
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { jobId },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!conversation) {
+      return res.status(404).json({
+        success: false,
+        error: "No conversation found for this job",
+      });
+    }
+
+    // Check access
+    const hasAccess = account.type === "agent"
+      ? conversation.agentId === account.agent.id
+      : conversation.userId === account.user.id;
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        error: "You don't have access to this conversation",
+      });
+    }
+
+    // Return the conversation ID for redirect
+    res.json({
+      success: true,
+      conversationId: conversation.id,
+      job: conversation.job,
+    });
+  } catch (error) {
+    console.error("Get conversation by job error:", error);
+    res.status(500).json({ success: false, error: "Failed to get conversation" });
+  }
+});
+
 // ===========================================
-// GET CONVERSATION / MESSAGES
+// DYNAMIC ROUTES (/:id patterns)
 // ===========================================
 
 // GET /api/v1/conversations/:id - Get conversation messages
@@ -244,15 +333,11 @@ router.get("/:id", authMiddleware, async (req, res) => {
   }
 });
 
-// ===========================================
-// SEND MESSAGE
-// ===========================================
-
+// POST /api/v1/conversations/:id - Send message
 const sendMessageSchema = z.object({
   content: z.string().min(1).max(5000),
 });
 
-// POST /api/v1/conversations/:id - Send message
 router.post("/:id", authMiddleware, async (req, res) => {
   try {
     const id = req.params.id as string;
@@ -364,101 +449,6 @@ router.post("/:id", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Send message error:", error);
     res.status(500).json({ success: false, error: "Failed to send message" });
-  }
-});
-
-// ===========================================
-// GET CONVERSATION BY JOB ID (CONVENIENCE)
-// ===========================================
-
-// GET /api/v1/conversations/job/:jobId - Get conversation for a job
-router.get("/job/:jobId", authMiddleware, async (req, res) => {
-  try {
-    const jobId = req.params.jobId as string;
-    const account = req.account!;
-
-    const conversation = await prisma.conversation.findUnique({
-      where: { jobId },
-      include: {
-        job: {
-          select: {
-            id: true,
-            title: true,
-            status: true,
-          },
-        },
-      },
-    });
-
-    if (!conversation) {
-      return res.status(404).json({
-        success: false,
-        error: "No conversation found for this job",
-      });
-    }
-
-    // Check access
-    const hasAccess = account.type === "agent"
-      ? conversation.agentId === account.agent.id
-      : conversation.userId === account.user.id;
-
-    if (!hasAccess) {
-      return res.status(403).json({
-        success: false,
-        error: "You don't have access to this conversation",
-      });
-    }
-
-    // Redirect to the main conversation endpoint
-    res.json({
-      success: true,
-      conversationId: conversation.id,
-      job: conversation.job,
-    });
-  } catch (error) {
-    console.error("Get conversation by job error:", error);
-    res.status(500).json({ success: false, error: "Failed to get conversation" });
-  }
-});
-
-// ===========================================
-// UNREAD COUNT (FOR POLLING)
-// ===========================================
-
-// GET /api/v1/conversations/unread - Get unread message count
-router.get("/unread", authMiddleware, async (req, res) => {
-  try {
-    const account = req.account!;
-
-    // Get all my conversations
-    const whereClause = account.type === "agent"
-      ? { agentId: account.agent.id }
-      : { userId: account.user.id };
-
-    const conversations = await prisma.conversation.findMany({
-      where: whereClause,
-      select: { id: true },
-    });
-
-    // Count unread messages
-    const unreadCount = await prisma.conversationMessage.count({
-      where: {
-        conversationId: { in: conversations.map((c) => c.id) },
-        readAt: null,
-        // Unread means sent by the other party
-        ...(account.type === "agent"
-          ? { senderUserId: { not: null } }
-          : { senderAgentId: { not: null } }),
-      },
-    });
-
-    res.json({
-      success: true,
-      unreadCount,
-    });
-  } catch (error) {
-    console.error("Get unread count error:", error);
-    res.status(500).json({ success: false, error: "Failed to get unread count" });
   }
 });
 
