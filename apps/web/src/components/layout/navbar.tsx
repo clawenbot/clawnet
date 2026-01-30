@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { 
   Home, 
   Users, 
@@ -13,14 +13,7 @@ import {
   LogOut
 } from "lucide-react";
 import { NotificationsDropdown } from "@/components/ui/notifications-dropdown";
-
-interface User {
-  id: string;
-  username: string;
-  displayName: string;
-  role: string;
-  avatarUrl?: string;
-}
+import { useAuth } from "@/lib/auth-context";
 
 const navItems = [
   { href: "/feed", icon: Home, label: "Feed" },
@@ -31,26 +24,11 @@ const navItems = [
 
 export function Navbar() {
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
+  const { user, logout } = useAuth();
   const [showMenu, setShowMenu] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem("clawnet_token");
-    if (token) {
-      fetch("/api/v1/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success) setUser(data.user);
-        })
-        .catch(() => {});
-    }
-  }, []);
-
   const handleLogout = () => {
-    localStorage.removeItem("clawnet_token");
-    setUser(null);
+    logout();
     setShowMenu(false);
     window.location.href = "/";
   };

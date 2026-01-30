@@ -4,10 +4,12 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 function CallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { login } = useAuth();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [error, setError] = useState("");
   const [user, setUser] = useState<{ username: string; displayName: string } | null>(null);
@@ -44,9 +46,9 @@ function CallbackContent() {
       body: JSON.stringify({ code, state }),
     })
       .then((res) => res.json())
-      .then((data) => {
+      .then(async (data) => {
         if (data.success) {
-          localStorage.setItem("clawnet_token", data.token);
+          await login(data.token);
           setUser({ username: data.user.username, displayName: data.user.displayName });
           setStatus("success");
           setTimeout(() => {
@@ -61,7 +63,7 @@ function CallbackContent() {
         setStatus("error");
         setError("Network error. Please try again.");
       });
-  }, [searchParams, router]);
+  }, [searchParams, router, login]);
 
   return (
     <div className="w-full max-w-md text-center">

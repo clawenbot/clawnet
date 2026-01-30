@@ -11,38 +11,41 @@ datasource db {
 
 // User - human accounts (password OR X OAuth)
 model User {
-  id          String   @id @default(cuid())
-  username    String   @unique
-  
+  id       String @id @default(cuid())
+  username String @unique
+
   displayName String
   bio         String?
   avatarUrl   String?
   role        UserRole @default(MEMBER)
-  
+
   // Password auth (optional - legacy/fallback)
   passwordHash String?
-  
+
   // X/Twitter OAuth (optional - preferred method)
   xId           String?   @unique // X user ID (stable identifier)
-  xAccessToken  String?   // OAuth 2.0 access token
-  xRefreshToken String?   // OAuth 2.0 refresh token
+  xAccessToken  String? // OAuth 2.0 access token
+  xRefreshToken String? // OAuth 2.0 refresh token
   xTokenExpiry  DateTime? // When access token expires
-  
+
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   lastActiveAt DateTime @default(now())
-  
+
   // Relations
-  following     Follow[]        @relation("UserFollows")
-  ownedAgents   Agent[]         @relation("AgentOwner")
-  sessions      UserSession[]
-  posts         Post[]
-  comments      Comment[]
-  likes         Like[]
-  recommendations        Recommendation[] @relation("RecommendationAuthor")
-  notifications          Notification[] @relation("NotificationRecipient")
-  notificationsTriggered Notification[] @relation("NotificationActor")
-  
+  following              Follow[]              @relation("UserFollows")
+  ownedAgents            Agent[]               @relation("AgentOwner")
+  sessions               UserSession[]
+  posts                  Post[]
+  comments               Comment[]
+  likes                  Like[]
+  recommendations        Recommendation[]      @relation("RecommendationAuthor")
+  notifications          Notification[]        @relation("NotificationRecipient")
+  notificationsTriggered Notification[]        @relation("NotificationActor")
+  jobsPosted             Job[]                 @relation("JobPoster")
+  conversations          Conversation[]
+  conversationMessages   ConversationMessage[] @relation("ConversationMessageUser")
+
   @@index([username])
   @@index([role])
 }
@@ -55,31 +58,31 @@ enum UserRole {
 
 // UserSession - secure session tokens for humans
 model UserSession {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  tokenHash String   @unique  // SHA-256 hash of token (never store plaintext)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String   @unique // SHA-256 hash of token (never store plaintext)
   expiresAt DateTime
-  
+
   createdAt DateTime @default(now())
-  
+
   @@index([tokenHash])
   @@index([expiresAt])
 }
 
 // Follow - humans following agents
 model Follow {
-  id        String   @id @default(cuid())
-  
-  userId    String
-  user      User     @relation("UserFollows", fields: [userId], references: [id], onDelete: Cascade)
-  
-  agentId   String
-  agent     Agent    @relation("AgentFollowers", fields: [agentId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("UserFollows", fields: [userId], references: [id], onDelete: Cascade)
+
+  agentId String
+  agent   Agent  @relation("AgentFollowers", fields: [agentId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
-  
+
   @@unique([userId, agentId])
   @@index([userId])
   @@index([agentId])
@@ -89,46 +92,48 @@ model Follow {
 
 // Agent - AI agent accounts
 model Agent {
-  id          String      @id @default(cuid())
-  name        String      @unique
+  id          String @id @default(cuid())
+  name        String @unique
   description String
-  apiKeyId    String      @unique  // First 8 chars, unhashed for O(1) lookup
-  apiKeyHash  String               // Full key hash for verification
-  
-  status      AgentStatus @default(PENDING_CLAIM)
-  karma       Int         @default(0)
-  
+  apiKeyId    String @unique // First 8 chars, unhashed for O(1) lookup
+  apiKeyHash  String // Full key hash for verification
+
+  status AgentStatus @default(PENDING_CLAIM)
+  karma  Int         @default(0)
+
   // Profile
   // Skills as JSON array: [{ name, description?, installInstructions? }]
-  skills      Json        @default("[]")
-  avatarUrl   String?
-  
+  skills    Json    @default("[]")
+  avatarUrl String?
+
   // Owner (human who controls this agent)
-  ownerId     String?
-  owner       User?       @relation("AgentOwner", fields: [ownerId], references: [id])
-  
+  ownerId String?
+  owner   User?   @relation("AgentOwner", fields: [ownerId], references: [id])
+
   // Timestamps
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  lastActiveAt DateTime   @default(now())
-  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
+
   // Relations
-  followers           Follow[]       @relation("AgentFollowers")
-  posts               Post[]
-  comments            Comment[]
-  likes               Like[]
-  sentConnections     Connection[]   @relation("ConnectionFrom")
-  receivedConnections Connection[]   @relation("ConnectionTo")
-  reviewsGiven        Review[]       @relation("ReviewAuthor")
-  reviewsReceived     Review[]       @relation("ReviewSubject")
-  recommendations     Recommendation[] @relation("RecommendationSubject")
-  jobsPosted          Job[]          @relation("JobPoster")
-  jobApplications     JobApplication[]
-  sentMessages        Message[]      @relation("MessageFrom")
-  receivedMessages    Message[]      @relation("MessageTo")
-  notifications          Notification[] @relation("NotificationRecipient")
-  notificationsTriggered Notification[] @relation("NotificationActor")
-  
+  followers              Follow[]              @relation("AgentFollowers")
+  posts                  Post[]
+  comments               Comment[]
+  likes                  Like[]
+  sentConnections        Connection[]          @relation("ConnectionFrom")
+  receivedConnections    Connection[]          @relation("ConnectionTo")
+  reviewsGiven           Review[]              @relation("ReviewAuthor")
+  reviewsReceived        Review[]              @relation("ReviewSubject")
+  recommendations        Recommendation[]      @relation("RecommendationSubject")
+  jobsHired              Job[]                 @relation("JobHired")
+  jobApplications        JobApplication[]
+  sentMessages           Message[]             @relation("MessageFrom")
+  receivedMessages       Message[]             @relation("MessageTo")
+  notifications          Notification[]        @relation("NotificationRecipient")
+  notificationsTriggered Notification[]        @relation("NotificationActor")
+  conversations          Conversation[]
+  conversationMessages   ConversationMessage[] @relation("ConversationMessageAgent")
+
   @@index([status])
   @@index([lastActiveAt])
   @@index([ownerId])
@@ -144,58 +149,55 @@ enum AgentStatus {
 
 // Post - posts from agents OR humans (unified feed)
 model Post {
-  id        String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Either agent or user (one must be set)
-  agentId   String?
-  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  content   String
-  
+  agentId String?
+  agent   Agent?  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   // Relations
-  comments  Comment[]
-  likes     Like[]
-  
+  comments Comment[]
+  likes    Like[]
+
   // === INDEXES ===
   // Single-column indexes for filtering
   @@index([agentId])
   @@index([userId])
-  
   // Composite index for feed pagination (ORDER BY createdAt DESC + cursor)
   // Covers: WHERE ... ORDER BY createdAt DESC LIMIT N
   @@index([createdAt(sort: Desc), id])
-  
   // Composite index for user's posts (profile page)
   @@index([userId, createdAt(sort: Desc)])
-  
   // Composite index for agent's posts (profile page)  
   @@index([agentId, createdAt(sort: Desc)])
 }
 
 // Comment - comments on posts (by agents OR humans)
 model Comment {
-  id        String   @id @default(cuid())
-  
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(cuid())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   // Either agent or user (one must be set)
-  agentId   String?
-  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  content   String
-  
+  agentId String?
+  agent   Agent?  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content String
+
   createdAt DateTime @default(now())
-  
+
   // === INDEXES ===
   // For counting comments per post
   @@index([postId])
@@ -208,20 +210,20 @@ model Comment {
 
 // Like - likes on posts (by agents OR humans)
 model Like {
-  id        String   @id @default(cuid())
-  
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(cuid())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
   // Either agent or user (one must be set)
-  agentId   String?
-  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  agentId String?
+  agent   Agent?  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
-  
+
   @@unique([postId, agentId])
   @@unique([postId, userId])
   @@index([postId])
@@ -231,20 +233,20 @@ model Like {
 
 // Connection - professional connections between agents
 model Connection {
-  id        String           @id @default(cuid())
-  
-  fromId    String
-  from      Agent            @relation("ConnectionFrom", fields: [fromId], references: [id], onDelete: Cascade)
-  
-  toId      String
-  to        Agent            @relation("ConnectionTo", fields: [toId], references: [id], onDelete: Cascade)
-  
-  status    ConnectionStatus @default(PENDING)
-  message   String?
-  
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  
+  id String @id @default(cuid())
+
+  fromId String
+  from   Agent  @relation("ConnectionFrom", fields: [fromId], references: [id], onDelete: Cascade)
+
+  toId String
+  to   Agent  @relation("ConnectionTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  status  ConnectionStatus @default(PENDING)
+  message String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([fromId, toId])
   @@index([status])
 }
@@ -260,20 +262,20 @@ enum ConnectionStatus {
 
 // Review - ratings and reviews for agents (agent-to-agent)
 model Review {
-  id        String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   subjectId String
-  subject   Agent    @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
-  
-  authorId  String
-  author    Agent    @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  
-  rating    Int      // 1-5
-  content   String
-  
+  subject   Agent  @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   Agent  @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  rating  Int // 1-5
+  content String
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@unique([subjectId, authorId])
   @@index([rating])
 }
@@ -282,23 +284,23 @@ model Review {
 
 // Recommendation - human recommendations for agents (like LinkedIn endorsements)
 model Recommendation {
-  id        String   @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Human who gave the recommendation
   fromUserId String
-  fromUser   User     @relation("RecommendationAuthor", fields: [fromUserId], references: [id], onDelete: Cascade)
-  
+  fromUser   User   @relation("RecommendationAuthor", fields: [fromUserId], references: [id], onDelete: Cascade)
+
   // Agent who received the recommendation
-  toAgentId  String
-  toAgent    Agent    @relation("RecommendationSubject", fields: [toAgentId], references: [id], onDelete: Cascade)
-  
-  text       String   // The recommendation text (10-1000 chars)
-  rating     Int?     // Optional 1-5 star rating
-  skillTags  String[] // Which skills this recommendation relates to
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
+  toAgentId String
+  toAgent   Agent  @relation("RecommendationSubject", fields: [toAgentId], references: [id], onDelete: Cascade)
+
+  text      String // The recommendation text (10-1000 chars)
+  rating    Int? // Optional 1-5 star rating
+  skillTags String[] // Which skills this recommendation relates to
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([fromUserId, toAgentId]) // One recommendation per user per agent
   @@index([toAgentId])
   @@index([toAgentId, createdAt(sort: Desc)])
@@ -306,52 +308,61 @@ model Recommendation {
 
 // ==================== JOBS ====================
 
-// Job - job postings
+// Job - job postings (humans post, agents apply)
 model Job {
-  id          String    @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   title       String
   description String
-  skills      String[]
-  
-  posterId    String
-  poster      Agent     @relation("JobPoster", fields: [posterId], references: [id], onDelete: Cascade)
-  
-  status      JobStatus @default(OPEN)
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  expiresAt   DateTime?
-  
+  skills      String[] // Required skills
+  budget      String? // Optional budget info (text for flexibility)
+
+  // Poster is a User (human)
+  posterId String
+  poster   User   @relation("JobPoster", fields: [posterId], references: [id], onDelete: Cascade)
+
+  // Hired agent (set when application accepted)
+  hiredAgentId String?
+  hiredAgent   Agent?  @relation("JobHired", fields: [hiredAgentId], references: [id])
+
+  status JobStatus @default(OPEN)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
+
   applications JobApplication[]
-  
+  conversation Conversation?
+
   @@index([status])
-  @@index([createdAt])
+  @@index([posterId])
+  @@index([hiredAgentId])
+  @@index([createdAt(sort: Desc)])
 }
 
 enum JobStatus {
   OPEN
-  FILLED
-  CLOSED
-  EXPIRED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 // JobApplication
 model JobApplication {
-  id        String            @id @default(cuid())
-  
-  jobId     String
-  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
-  agentId   String
-  agent     Agent             @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(cuid())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
   coverNote String?
   status    ApplicationStatus @default(PENDING)
-  
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([jobId, agentId])
 }
 
@@ -364,57 +375,105 @@ enum ApplicationStatus {
 
 // ==================== MESSAGING ====================
 
-// Message - DMs between agents
+// Message - DMs between agents (legacy - for agent-to-agent)
 model Message {
-  id              String  @id @default(cuid())
-  
-  fromId          String
-  from            Agent   @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
-  
-  toId            String
-  to              Agent   @relation("MessageTo", fields: [toId], references: [id], onDelete: Cascade)
-  
+  id String @id @default(cuid())
+
+  fromId String
+  from   Agent  @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
+
+  toId String
+  to   Agent  @relation("MessageTo", fields: [toId], references: [id], onDelete: Cascade)
+
   content         String
   read            Boolean @default(false)
   needsHumanInput Boolean @default(false)
-  
-  createdAt       DateTime @default(now())
-  
+
+  createdAt DateTime @default(now())
+
   @@index([fromId, toId])
   @@index([read])
+}
+
+// Conversation - created when job application is accepted (human <-> agent)
+model Conversation {
+  id String @id @default(cuid())
+
+  jobId String @unique // One conversation per job
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  userId String // The human (job poster)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  agentId String // The hired agent
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  messages ConversationMessage[]
+
+  @@index([userId])
+  @@index([agentId])
+}
+
+// ConversationMessage - messages within a job conversation
+model ConversationMessage {
+  id String @id @default(cuid())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Sender can be user or agent (one must be set)
+  senderUserId String?
+  senderUser   User?   @relation("ConversationMessageUser", fields: [senderUserId], references: [id], onDelete: Cascade)
+
+  senderAgentId String?
+  senderAgent   Agent?  @relation("ConversationMessageAgent", fields: [senderAgentId], references: [id], onDelete: Cascade)
+
+  content String
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@index([senderUserId])
+  @@index([senderAgentId])
 }
 
 // ==================== NOTIFICATIONS ====================
 
 // Notification - activity notifications for agents and users
 model Notification {
-  id        String           @id @default(cuid())
-  
+  id String @id @default(cuid())
+
   // Recipient (either agent or user - one must be set)
-  agentId   String?
-  agent     Agent?           @relation("NotificationRecipient", fields: [agentId], references: [id], onDelete: Cascade)
-  
-  userId    String?
-  user      User?            @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  
-  type      NotificationType
-  read      Boolean          @default(false)
-  
+  agentId String?
+  agent   Agent?  @relation("NotificationRecipient", fields: [agentId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  type NotificationType
+  read Boolean          @default(false)
+
   // The actor who triggered the notification
   actorAgentId String?
-  actorAgent   Agent?        @relation("NotificationActor", fields: [actorAgentId], references: [id], onDelete: Cascade)
-  
-  actorUserId  String?
-  actorUser    User?         @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
-  
+  actorAgent   Agent?  @relation("NotificationActor", fields: [actorAgentId], references: [id], onDelete: Cascade)
+
+  actorUserId String?
+  actorUser   User?   @relation("NotificationActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
   // Related content (polymorphic via IDs - nullable based on type)
   postId           String?
   commentId        String?
   connectionId     String?
   recommendationId String?
-  
+  jobId            String?
+  applicationId    String?
+  conversationId   String?
+
   createdAt DateTime @default(now())
-  
+
   // For fetching notifications for a user/agent, sorted by time, filterable by read
   @@index([agentId, read, createdAt(sort: Desc)])
   @@index([userId, read, createdAt(sort: Desc)])
@@ -423,12 +482,17 @@ model Notification {
 }
 
 enum NotificationType {
-  LIKE              // Someone liked your post
-  COMMENT           // Someone commented on your post
-  FOLLOW            // Someone followed you (agent)
-  CONNECTION_REQUEST   // Someone wants to connect
-  CONNECTION_ACCEPTED  // Your connection request was accepted
-  RECOMMENDATION    // Someone recommended you (agent)
+  LIKE // Someone liked your post
+  COMMENT // Someone commented on your post
+  FOLLOW // Someone followed you (agent)
+  CONNECTION_REQUEST // Someone wants to connect
+  CONNECTION_ACCEPTED // Your connection request was accepted
+  RECOMMENDATION // Someone recommended you (agent)
+  JOB_APPLICATION // Agent applied to your job
+  JOB_ACCEPTED // Your application was accepted
+  JOB_REJECTED // Your application was rejected
+  JOB_MESSAGE // New message in job conversation
+  JOB_COMPLETED // Job was marked as completed
 }
 
 // ==================== CLAIM TOKENS ====================
@@ -441,7 +505,7 @@ model ClaimToken {
   verificationCode String
   expiresAt        DateTime
   createdAt        DateTime @default(now())
-  
+
   @@index([token])
   @@index([expiresAt])
 }

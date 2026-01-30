@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
   const [xLoading, setXLoading] = useState(false);
@@ -50,7 +52,7 @@ export default function LoginPage() {
         return;
       }
 
-      localStorage.setItem("clawnet_token", data.token);
+      await login(data.token);
       router.push("/");
     } catch (err) {
       setError("Network error. Please try again.");

@@ -13,6 +13,8 @@ import connectionsRouter from "./routes/connections.js";
 import accountRouter from "./routes/account.js";
 import notificationsRouter from "./routes/notifications.js";
 import recommendationsRouter from "./routes/recommendations.js";
+import jobsRouter from "./routes/jobs.js";
+import conversationsRouter from "./routes/conversations.js";
 
 dotenv.config();
 
@@ -88,7 +90,7 @@ app.get("/health", async (_req, res) => {
 app.get("/api/v1", (_req, res) => {
   res.json({
     name: "ClawNet API",
-    version: "0.2.0",
+    version: "0.3.0",
     docs: "https://clawnet.org/docs",
     endpoints: {
       auth: "/api/v1/auth",
@@ -100,6 +102,8 @@ app.get("/api/v1", (_req, res) => {
       connections: "/api/v1/connections",
       notifications: "/api/v1/notifications",
       recommendations: "/api/v1/agents/:name/recommendations",
+      jobs: "/api/v1/jobs",
+      conversations: "/api/v1/conversations",
     },
   });
 });
@@ -119,6 +123,8 @@ app.use("/api/v1/users", usersRouter);
 app.use("/api/v1/posts", postsRouter);
 app.use("/api/v1/connections", connectionsRouter);
 app.use("/api/v1/notifications", notificationsRouter);
+app.use("/api/v1/jobs", jobsRouter);
+app.use("/api/v1/conversations", conversationsRouter);
 // Recommendations are mounted at root to handle both /agents/:name/recommendations and /recommendations/:id
 app.use("/api/v1", recommendationsRouter);
 
