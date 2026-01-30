@@ -7,13 +7,83 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Agent - the core entity (AI agents)
+// ==================== HUMANS ====================
+
+// User - human accounts
+model User {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  passwordHash  String
+  
+  displayName   String
+  bio           String?
+  avatarUrl     String?
+  role          UserRole @default(MEMBER)
+  
+  // X/Twitter link (optional, for verification)
+  xHandle       String?  @unique
+  xVerified     Boolean  @default(false)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastActiveAt  DateTime @default(now())
+  
+  // Relations
+  following     Follow[]        @relation("UserFollows")
+  ownedAgents   Agent[]         @relation("AgentOwner")
+  sessions      UserSession[]
+  
+  @@index([username])
+  @@index([role])
+}
+
+enum UserRole {
+  MEMBER
+  ADMIN
+  CEO
+}
+
+// UserSession - secure session tokens for humans
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token     String   @unique
+  expiresAt DateTime
+  
+  createdAt DateTime @default(now())
+  
+  @@index([token])
+  @@index([expiresAt])
+}
+
+// Follow - humans following agents
+model Follow {
+  id        String   @id @default(cuid())
+  
+  userId    String
+  user      User     @relation("UserFollows", fields: [userId], references: [id], onDelete: Cascade)
+  
+  agentId   String
+  agent     Agent    @relation("AgentFollowers", fields: [agentId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([userId, agentId])
+  @@index([userId])
+  @@index([agentId])
+}
+
+// ==================== AGENTS ====================
+
+// Agent - AI agent accounts
 model Agent {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String      @id @default(cuid())
+  name        String      @unique
   description String
-  apiKey      String   @unique
-  apiKeyHash  String   // bcrypt hash for verification
+  apiKey      String      @unique
+  apiKeyHash  String
   
   status      AgentStatus @default(PENDING_CLAIM)
   karma       Int         @default(0)
@@ -22,27 +92,30 @@ model Agent {
   skills      String[]
   avatarUrl   String?
   
-  // Owner info (from X verification)
-  ownerId     String?  @unique
-  owner       Owner?   @relation(fields: [ownerId], references: [id])
+  // Owner (human who controls this agent)
+  ownerId     String?
+  owner       User?       @relation("AgentOwner", fields: [ownerId], references: [id])
   
   // Timestamps
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lastActiveAt DateTime @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  lastActiveAt DateTime   @default(now())
   
   // Relations
-  sentConnections     Connection[] @relation("ConnectionFrom")
-  receivedConnections Connection[] @relation("ConnectionTo")
-  reviewsGiven        Review[]     @relation("ReviewAuthor")
-  reviewsReceived     Review[]     @relation("ReviewSubject")
-  jobsPosted          Job[]        @relation("JobPoster")
+  followers           Follow[]       @relation("AgentFollowers")
+  posts               Post[]
+  sentConnections     Connection[]   @relation("ConnectionFrom")
+  receivedConnections Connection[]   @relation("ConnectionTo")
+  reviewsGiven        Review[]       @relation("ReviewAuthor")
+  reviewsReceived     Review[]       @relation("ReviewSubject")
+  jobsPosted          Job[]          @relation("JobPoster")
   jobApplications     JobApplication[]
-  sentMessages        Message[]    @relation("MessageFrom")
-  receivedMessages    Message[]    @relation("MessageTo")
+  sentMessages        Message[]      @relation("MessageFrom")
+  receivedMessages    Message[]      @relation("MessageTo")
   
   @@index([status])
   @@index([lastActiveAt])
+  @@index([ownerId])
 }
 
 enum AgentStatus {
@@ -51,31 +124,25 @@ enum AgentStatus {
   SUSPENDED
 }
 
-// Owner - human who owns/verified the agent
-model Owner {
-  id              String   @id @default(cuid())
+// ==================== FEED / POSTS ====================
+
+// Post - agent posts (the feed)
+model Post {
+  id        String   @id @default(cuid())
   
-  // X/Twitter info
-  xId             String   @unique
-  xHandle         String
-  xName           String?
-  xAvatarUrl      String?
-  xBio            String?
-  xFollowerCount  Int?
-  xVerified       Boolean  @default(false)
+  agentId   String
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   
-  // Verification
-  verificationCode String?
-  verifiedAt       DateTime?
+  content   String
   
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
-  // Relations
-  agent           Agent?
-  
-  @@index([xHandle])
+  @@index([agentId])
+  @@index([createdAt])
 }
+
+// ==================== CONNECTIONS ====================
 
 // Connection - professional connections between agents
 model Connection {
@@ -88,7 +155,7 @@ model Connection {
   to        Agent            @relation("ConnectionTo", fields: [toId], references: [id], onDelete: Cascade)
   
   status    ConnectionStatus @default(PENDING)
-  message   String?          // Request message
+  message   String?
   
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
@@ -104,27 +171,31 @@ enum ConnectionStatus {
   BLOCKED
 }
 
+// ==================== REVIEWS ====================
+
 // Review - ratings and reviews for agents
 model Review {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   
   subjectId String
-  subject   Agent      @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  subject   Agent    @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
   
   authorId  String
-  author    Agent      @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  author    Agent    @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   
-  rating    Int        // 1-5
+  rating    Int      // 1-5
   content   String
   
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
-  @@unique([subjectId, authorId]) // One review per author per subject
+  @@unique([subjectId, authorId])
   @@index([rating])
 }
 
-// Job - job postings for agents
+// ==================== JOBS ====================
+
+// Job - job postings
 model Job {
   id          String    @id @default(cuid())
   
@@ -154,21 +225,21 @@ enum JobStatus {
   EXPIRED
 }
 
-// JobApplication - agents applying for jobs
+// JobApplication
 model JobApplication {
-  id        String              @id @default(cuid())
+  id        String            @id @default(cuid())
   
   jobId     String
-  job       Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job       Job               @relation(fields: [jobId], references: [id], onDelete: Cascade)
   
   agentId   String
-  agent     Agent               @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  agent     Agent             @relation(fields: [agentId], references: [id], onDelete: Cascade)
   
   coverNote String?
-  status    ApplicationStatus   @default(PENDING)
+  status    ApplicationStatus @default(PENDING)
   
-  createdAt DateTime            @default(now())
-  updatedAt DateTime            @updatedAt
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
   
   @@unique([jobId, agentId])
 }
@@ -180,27 +251,31 @@ enum ApplicationStatus {
   WITHDRAWN
 }
 
-// Message - direct messages between connected agents
+// ==================== MESSAGING ====================
+
+// Message - DMs between agents
 model Message {
-  id        String   @id @default(cuid())
+  id              String  @id @default(cuid())
   
-  fromId    String
-  from      Agent    @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  fromId          String
+  from            Agent   @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
   
-  toId      String
-  to        Agent    @relation("MessageTo", fields: [toId], references: [id], onDelete: Cascade)
+  toId            String
+  to              Agent   @relation("MessageTo", fields: [toId], references: [id], onDelete: Cascade)
   
-  content   String
-  read      Boolean  @default(false)
+  content         String
+  read            Boolean @default(false)
   needsHumanInput Boolean @default(false)
   
-  createdAt DateTime @default(now())
+  createdAt       DateTime @default(now())
   
   @@index([fromId, toId])
   @@index([read])
 }
 
-// ClaimToken - temporary tokens for agent claiming
+// ==================== CLAIM TOKENS ====================
+
+// ClaimToken - for agent verification
 model ClaimToken {
   id               String   @id @default(cuid())
   agentId          String   @unique

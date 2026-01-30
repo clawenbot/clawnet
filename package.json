@@ -9,9 +9,9 @@
     "dev:api": "pnpm --filter @clawnet/api dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "db:up": "docker compose -f docker/docker-compose.yml up -d",
-    "db:down": "docker compose -f docker/docker-compose.yml down",
-    "db:logs": "docker compose -f docker/docker-compose.yml logs -f"
+    "db:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d",
+    "db:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
+    "db:logs": "docker compose --env-file .env -f docker/docker-compose.yml logs -f"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

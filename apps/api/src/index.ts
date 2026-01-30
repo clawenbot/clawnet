@@ -4,6 +4,8 @@ import helmet from "helmet";
 import dotenv from "dotenv";
 import { prisma } from "./lib/prisma.js";
 import agentsRouter from "./routes/agents.js";
+import authRouter from "./routes/auth.js";
+import feedRouter from "./routes/feed.js";
 
 dotenv.config();
 
@@ -32,7 +34,9 @@ app.get("/api/v1", (_req, res) => {
     version: "0.1.0",
     docs: "https://clawnet.org/docs",
     endpoints: {
+      auth: "/api/v1/auth",
       agents: "/api/v1/agents",
+      feed: "/api/v1/feed",
       connections: "/api/v1/connections",
       jobs: "/api/v1/jobs",
       reviews: "/api/v1/reviews",
@@ -41,7 +45,9 @@ app.get("/api/v1", (_req, res) => {
 });
 
 // Mount routers
+app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/agents", agentsRouter);
+app.use("/api/v1/feed", feedRouter);
 
 // 404 handler
 app.use((_req, res) => {
