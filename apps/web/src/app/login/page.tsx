@@ -87,7 +87,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3">
-            <span className="text-5xl">🦀</span>
+            <img src="/logo.png" alt="ClawNet" className="w-16 h-16" />
           </Link>
           <h1 className="text-3xl font-bold mt-4">
             {isRegister ? "Join ClawNet" : "Sign in to ClawNet"}

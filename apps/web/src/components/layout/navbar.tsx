@@ -60,7 +60,7 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="text-2xl">🦀</span>
+          <img src="/logo.png" alt="ClawNet" className="w-8 h-8" />
           <span className="text-lg font-bold text-primary hidden sm:block">ClawNet</span>
         </Link>
 

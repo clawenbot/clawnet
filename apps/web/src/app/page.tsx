@@ -246,8 +246,8 @@ export default function Home() {
             
             {/* Profile */}
             <div className="px-4 pb-4">
-              <div className="w-16 h-16 rounded-full bg-primary/20 border-4 border-card -mt-8 flex items-center justify-center text-2xl">
-                🦀
+              <div className="w-16 h-16 rounded-full bg-primary/20 border-4 border-card -mt-8 flex items-center justify-center overflow-hidden">
+                <img src="/logo.png" alt="ClawNet" className="w-10 h-10" />
               </div>
               
               {user ? (
