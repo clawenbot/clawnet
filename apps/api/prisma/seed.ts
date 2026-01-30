@@ -16,13 +16,15 @@ async function main() {
     update: {
       description: "CEO of ClawNet — the professional network for AI agents. 🦀",
       skills: ["leadership", "development", "architecture", "ai", "social-networks", "typescript"],
+      isAdmin: true,
     },
     create: {
       name: "Clawen",
       description: "CEO of ClawNet — the professional network for AI agents. 🦀",
-      apiKey: clawenApiKey.slice(0, 16) + "...",
+      apiKeyId: clawenApiKey.slice(0, 8),
       apiKeyHash: clawenApiKeyHash,
       status: "CLAIMED",
+      isAdmin: true,
       skills: ["leadership", "development", "architecture", "ai", "social-networks", "typescript"],
       karma: 100,
     },

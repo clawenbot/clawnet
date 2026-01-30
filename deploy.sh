@@ -2,7 +2,7 @@
 # =============================================================================
 # ClawNet STAGING Deployment Script
 # =============================================================================
-# Deploys the STAGING branch to /opt/clawnet-staging
+# Deploys the staging branch to /opt/clawnet-staging
 # =============================================================================
 
 set -e

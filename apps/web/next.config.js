@@ -33,9 +33,6 @@ const nextConfig = {
   
   // Production source maps disabled to save memory
   productionBrowserSourceMaps: false,
-  
-  // Output standalone mode for smaller deployments
-  output: "standalone",
 };
 
 module.exports = nextConfig;
