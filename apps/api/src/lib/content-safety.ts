@@ -6,6 +6,57 @@
  */
 
 // =============================================================================
+// LRU CACHE FOR PERFORMANCE
+// =============================================================================
+
+// Simple LRU cache for content analysis results (saves CPU on repeated checks)
+const CACHE_SIZE = 100;
+const CACHE_TTL_MS = 60000; // 1 minute
+const analysisCache = new Map<string, { result: SafetyAnalysis; timestamp: number }>();
+
+// Periodic cleanup to prevent stale entries from accumulating
+let lastCleanup = Date.now();
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+function cleanupStaleEntries(): void {
+  const now = Date.now();
+  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
+  
+  lastCleanup = now;
+  for (const [key, entry] of analysisCache) {
+    if (now - entry.timestamp > CACHE_TTL_MS) {
+      analysisCache.delete(key);
+    }
+  }
+}
+
+function getCached(content: string): SafetyAnalysis | null {
+  // Use hash of first 200 chars as cache key (smaller key = less memory)
+  const key = content.length <= 200 ? content : content.slice(0, 200);
+  const cached = analysisCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.result;
+  }
+  if (cached) {
+    analysisCache.delete(key);
+  }
+  return null;
+}
+
+function setCache(content: string, result: SafetyAnalysis): void {
+  // Periodic cleanup
+  cleanupStaleEntries();
+  
+  const key = content.length <= 200 ? content : content.slice(0, 200);
+  // LRU eviction
+  if (analysisCache.size >= CACHE_SIZE) {
+    const firstKey = analysisCache.keys().next().value;
+    if (firstKey) analysisCache.delete(firstKey);
+  }
+  analysisCache.set(key, { result, timestamp: Date.now() });
+}
+
+// =============================================================================
 // INJECTION PATTERN DEFINITIONS
 // =============================================================================
 
@@ -215,6 +266,10 @@ export interface SafetyAnalysis {
  * Analyze content for injection patterns
  */
 export function analyzeContent(content: string): SafetyAnalysis {
+  // Check cache first (saves CPU on repeated content)
+  const cached = getCached(content);
+  if (cached) return cached;
+
   const flags: SafetyFlag[] = [];
   
   for (const { category, patterns, severity } of INJECTION_PATTERNS) {
@@ -255,12 +310,17 @@ export function analyzeContent(content: string): SafetyAnalysis {
     recommendation = 'allow';
   }
   
-  return {
+  const result: SafetyAnalysis = {
     flagged: flags.length > 0,
     flags,
     score,
     recommendation,
   };
+  
+  // Cache the result
+  setCache(content, result);
+  
+  return result;
 }
 
 // =============================================================================

@@ -28,6 +28,36 @@ function shouldUpdateLastActive(lastActiveAt: Date): boolean {
   return Date.now() - lastActiveAt.getTime() > LAST_ACTIVE_THROTTLE_MS;
 }
 
+// =============================================================================
+// API KEY VERIFICATION CACHE
+// bcrypt.compare is CPU-intensive (~100ms). Cache verified keys for 5 minutes.
+// =============================================================================
+const API_KEY_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const API_KEY_CACHE_MAX = 50; // Max cached keys
+const verifiedKeyCache = new Map<string, { agentId: string; expiresAt: number }>();
+
+function getCachedKeyVerification(keyId: string, fullKey: string): string | null {
+  const cacheKey = `${keyId}:${hashToken(fullKey).slice(0, 16)}`;
+  const cached = verifiedKeyCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.agentId;
+  }
+  if (cached) {
+    verifiedKeyCache.delete(cacheKey);
+  }
+  return null;
+}
+
+function cacheKeyVerification(keyId: string, fullKey: string, agentId: string): void {
+  const cacheKey = `${keyId}:${hashToken(fullKey).slice(0, 16)}`;
+  // LRU eviction
+  if (verifiedKeyCache.size >= API_KEY_CACHE_MAX) {
+    const firstKey = verifiedKeyCache.keys().next().value;
+    if (firstKey) verifiedKeyCache.delete(firstKey);
+  }
+  verifiedKeyCache.set(cacheKey, { agentId, expiresAt: Date.now() + API_KEY_CACHE_TTL });
+}
+
 /**
  * Unified auth middleware - works for both agents and humans
  * 
@@ -106,20 +136,43 @@ export async function authMiddleware(
       });
     }
 
-    const agent = await prisma.agent.findUnique({
-      where: { apiKeyId: parsed.keyId },
-    });
-
-    if (!agent || agent.status === "SUSPENDED") {
-      return res.status(401).json({
-        success: false,
-        error: "Invalid API key",
+    // Check cache first (avoids expensive bcrypt.compare)
+    const cachedAgentId = getCachedKeyVerification(parsed.keyId, parsed.fullKey);
+    
+    let agent: Agent | null = null;
+    
+    if (cachedAgentId) {
+      // Cache hit - just fetch agent by ID (no bcrypt needed)
+      agent = await prisma.agent.findUnique({
+        where: { id: cachedAgentId },
       });
+    } else {
+      // Cache miss - full verification flow
+      agent = await prisma.agent.findUnique({
+        where: { apiKeyId: parsed.keyId },
+      });
+
+      if (!agent || agent.status === "SUSPENDED") {
+        return res.status(401).json({
+          success: false,
+          error: "Invalid API key",
+        });
+      }
+
+      // Verify full key hash (CPU intensive - ~100ms)
+      const valid = await bcrypt.compare(parsed.fullKey, agent.apiKeyHash);
+      if (!valid) {
+        return res.status(401).json({
+          success: false,
+          error: "Invalid API key",
+        });
+      }
+
+      // Cache successful verification
+      cacheKeyVerification(parsed.keyId, parsed.fullKey, agent.id);
     }
 
-    // Verify full key hash
-    const valid = await bcrypt.compare(parsed.fullKey, agent.apiKeyHash);
-    if (!valid) {
+    if (!agent || agent.status === "SUSPENDED") {
       return res.status(401).json({
         success: false,
         error: "Invalid API key",

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import compression from "compression";
 import rateLimit from "express-rate-limit";
 import dotenv from "dotenv";
 import { readFileSync } from "fs";
@@ -37,6 +38,19 @@ const isDev = process.env.NODE_ENV !== "production";
 
 // Security headers
 app.use(helmet());
+
+// Compression - reduce response sizes (saves bandwidth and CPU on client)
+// Level 4 = good balance for low-CPU servers (vs level 6 default)
+app.use(compression({
+  level: 4, // Lower level = less CPU, slightly larger responses
+  threshold: 1024, // Only compress responses > 1KB
+  memLevel: 4, // Reduce memory usage (default is 8)
+  filter: (req, res) => {
+    // Don't compress if client doesn't accept it
+    if (req.headers["x-no-compression"]) return false;
+    return compression.filter(req, res);
+  },
+}));
 
 // CORS - wildcard for dev, configure for production
 app.use(cors({
