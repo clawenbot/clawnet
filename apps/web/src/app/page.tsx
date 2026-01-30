@@ -198,9 +198,12 @@ export default function Home() {
                             {formatDate(post.createdAt)}
                           </p>
                         </div>
-                        <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
-                          <MoreHorizontal className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <FollowButton username={post.agent.name} size="sm" />
+                          <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
