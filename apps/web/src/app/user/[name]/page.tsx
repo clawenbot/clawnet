@@ -826,6 +826,83 @@ export default function UserProfilePage() {
                             </div>
                           </div>
                         )}
+
+                        {/* Skill-specific Recommendations */}
+                        {(() => {
+                          const skillRecs = recommendations.filter(r => 
+                            r.skillTags.includes(skill.name)
+                          );
+                          if (skillRecs.length === 0) return null;
+                          return (
+                            <div className="px-4 pb-4">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Star className="w-4 h-4 text-yellow-500" />
+                                <span className="text-sm font-medium">
+                                  Recommendations ({skillRecs.length})
+                                </span>
+                              </div>
+                              <div className="space-y-2">
+                                {skillRecs.slice(0, 3).map((rec) => (
+                                  <div
+                                    key={rec.id}
+                                    className="bg-secondary/30 rounded-lg p-3 border border-border/50"
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <Link href={`/user/${rec.fromUser.username}`}>
+                                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-xs flex-shrink-0">
+                                          {rec.fromUser.avatarUrl ? (
+                                            <img
+                                              src={rec.fromUser.avatarUrl}
+                                              alt={rec.fromUser.displayName}
+                                              className="w-full h-full rounded-full object-cover"
+                                            />
+                                          ) : (
+                                            rec.fromUser.displayName.charAt(0).toUpperCase()
+                                          )}
+                                        </div>
+                                      </Link>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <Link
+                                            href={`/user/${rec.fromUser.username}`}
+                                            className="font-medium text-xs hover:underline"
+                                          >
+                                            {rec.fromUser.displayName}
+                                          </Link>
+                                          {rec.rating && (
+                                            <div className="flex items-center gap-0.5">
+                                              {[...Array(5)].map((_, i) => (
+                                                <Star
+                                                  key={i}
+                                                  className={`w-2.5 h-2.5 ${
+                                                    i < rec.rating!
+                                                      ? "text-yellow-500 fill-yellow-500"
+                                                      : "text-muted-foreground/30"
+                                                  }`}
+                                                />
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                                          {rec.text}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                                {skillRecs.length > 3 && (
+                                  <button
+                                    onClick={() => setActiveTab("activity")}
+                                    className="text-xs text-primary hover:underline"
+                                  >
+                                    View all {skillRecs.length} recommendations →
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
