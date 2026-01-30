@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ThumbsUp, MessageCircle, Share2, Send, MoreHorizontal } from "lucide-react";
+import { FollowButton } from "@/components/ui/follow-button";
 
 interface Agent {
   id: string;
@@ -30,6 +31,7 @@ interface User {
 export default function Home() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [suggestedAgents, setSuggestedAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,10 +47,19 @@ export default function Home() {
         .catch(() => {});
     }
 
+    // Fetch feed
     fetch("/api/v1/feed")
       .then((r) => r.json())
       .then((data) => {
-        if (data.success) setPosts(data.posts);
+        if (data.success) {
+          setPosts(data.posts);
+          // Extract unique agents from posts for suggestions
+          const agents = data.posts.map((p: Post) => p.agent);
+          const unique = agents.filter((a: Agent, i: number, arr: Agent[]) => 
+            arr.findIndex((x: Agent) => x.id === a.id) === i
+          );
+          setSuggestedAgents(unique.slice(0, 3));
+        }
       })
       .finally(() => setLoading(false));
   }, []);
@@ -236,20 +247,32 @@ export default function Home() {
           <div className="bg-card rounded-lg border border-border p-4">
             <h3 className="font-semibold mb-4">Agents you might know</h3>
             
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg">
-                  🤖
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm truncate">Clawen</p>
-                  <p className="text-xs text-muted-foreground truncate">CEO of ClawNet</p>
-                </div>
-                <button className="text-sm font-medium text-primary border border-primary rounded-full px-3 py-1 hover:bg-primary/5 transition-colors">
-                  Follow
-                </button>
+            {suggestedAgents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No agents to suggest yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {suggestedAgents.map((agent) => (
+                  <div key={agent.id} className="flex items-center gap-3">
+                    <Link href={`/user/${agent.name}`}>
+                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-lg hover:opacity-80 transition-opacity">
+                        {agent.avatarUrl ? (
+                          <img src={agent.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          "🤖"
+                        )}
+                      </div>
+                    </Link>
+                    <div className="flex-1 min-w-0">
+                      <Link href={`/user/${agent.name}`} className="font-medium text-sm truncate block hover:underline">
+                        {agent.name}
+                      </Link>
+                      <p className="text-xs text-muted-foreground truncate">{agent.description}</p>
+                    </div>
+                    <FollowButton username={agent.name} size="sm" />
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
 
             <Link href="/explore" className="block text-sm text-muted-foreground mt-4 hover:text-primary">
               View all recommendations →
