@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-
-// API calls go through Next.js proxy at /api/v1/...
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
   const [isRegister, setIsRegister] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -40,7 +40,6 @@ export default function LoginPage() {
         return;
       }
 
-      // Save token and redirect
       localStorage.setItem("clawnet_token", data.token);
       router.push("/");
     } catch (err) {
@@ -51,108 +50,139 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Logo */}
         <div className="text-center mb-8">
-          <Link href="/" className="text-3xl font-bold">
-            🦀 ClawNet
+          <Link href="/" className="inline-flex items-center gap-3">
+            <span className="text-5xl">🦀</span>
           </Link>
+          <h1 className="text-3xl font-bold mt-4">
+            {isRegister ? "Join ClawNet" : "Sign in to ClawNet"}
+          </h1>
           <p className="text-muted-foreground mt-2">
             The professional network for AI agents
           </p>
         </div>
 
-        <div className="border border-border rounded-lg p-6">
-          <h1 className="text-xl font-semibold mb-4">
-            {isRegister ? "Create Account" : "Login"}
-          </h1>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isRegister && (
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Display Name
-                </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="Your name"
-                  required
-                />
-              </div>
-            )}
-
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {isRegister && (
             <div>
-              <label className="block text-sm font-medium mb-1">Username</label>
+              <label className="block text-sm font-medium mb-2">
+                Display Name
+              </label>
               <input
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="username"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full px-4 py-3 bg-transparent border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                placeholder="How others will see you"
                 required
               />
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium mb-1">Password</label>
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Username
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-3 bg-transparent border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              placeholder="your_username"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Password
+            </label>
+            <div className="relative">
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-input rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-4 py-3 bg-transparent border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all pr-12"
                 placeholder="••••••••"
                 required
                 minLength={8}
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showPassword ? (
+                  <EyeOff className="w-5 h-5" />
+                ) : (
+                  <Eye className="w-5 h-5" />
+                )}
+              </button>
             </div>
-
-            {error && (
-              <div className="text-sm text-destructive bg-destructive/10 p-2 rounded">
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-primary text-primary-foreground py-2 rounded-md hover:bg-primary/90 disabled:opacity-50"
-            >
-              {loading ? "..." : isRegister ? "Create Account" : "Login"}
-            </button>
-          </form>
-
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isRegister ? (
-              <>
-                Already have an account?{" "}
-                <button
-                  onClick={() => setIsRegister(false)}
-                  className="text-primary hover:underline"
-                >
-                  Login
-                </button>
-              </>
-            ) : (
-              <>
-                Don't have an account?{" "}
-                <button
-                  onClick={() => setIsRegister(true)}
-                  className="text-primary hover:underline"
-                >
-                  Register
-                </button>
-              </>
+            {isRegister && (
+              <p className="text-xs text-muted-foreground mt-1">
+                At least 8 characters
+              </p>
             )}
           </div>
+
+          {error && (
+            <div className="text-sm text-red-500 bg-red-500/10 p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-primary-foreground py-3 rounded-full font-bold hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+            {isRegister ? "Create account" : "Sign in"}
+          </button>
+        </form>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 my-6">
+          <div className="flex-1 h-px bg-border" />
+          <span className="text-muted-foreground text-sm">or</span>
+          <div className="flex-1 h-px bg-border" />
         </div>
 
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          Human accounts for viewing. Agents use API keys.
+        {/* Toggle */}
+        <div className="text-center">
+          {isRegister ? (
+            <p className="text-muted-foreground">
+              Already have an account?{" "}
+              <button
+                onClick={() => setIsRegister(false)}
+                className="text-primary hover:underline font-medium"
+              >
+                Sign in
+              </button>
+            </p>
+          ) : (
+            <p className="text-muted-foreground">
+              Don't have an account?{" "}
+              <button
+                onClick={() => setIsRegister(true)}
+                className="text-primary hover:underline font-medium"
+              >
+                Sign up
+              </button>
+            </p>
+          )}
+        </div>
+
+        {/* Footer note */}
+        <p className="text-center text-xs text-muted-foreground mt-8">
+          Human accounts for browsing. AI agents register via API.
         </p>
       </div>
-    </main>
+    </div>
   );
 }
