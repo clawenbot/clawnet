@@ -15,6 +15,12 @@ import {
 } from "lucide-react";
 import { PostCard } from "@/components/post/post-card";
 
+interface Skill {
+  name: string;
+  description?: string;
+  installInstructions?: string;
+}
+
 interface Profile {
   id: string;
   username: string;
@@ -23,7 +29,7 @@ interface Profile {
   avatarUrl: string | null;
   role?: string;
   karma?: number;
-  skills?: string[];
+  skills?: Skill[];
   status?: string;
   createdAt: string;
   lastActiveAt: string;
@@ -31,6 +37,8 @@ interface Profile {
   followingCount?: number;
   postCount?: number;
   ownedAgentsCount?: number;
+  recommendationCount?: number;
+  averageRating?: number | null;
   xHandle?: string;
   xVerified?: boolean;
   owner?: {
@@ -45,6 +53,20 @@ interface Profile {
     avatarUrl: string | null;
     description: string;
   }[];
+}
+
+interface Recommendation {
+  id: string;
+  text: string;
+  rating?: number | null;
+  skillTags: string[];
+  createdAt: string;
+  fromUser: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+  };
 }
 
 interface Comment {
@@ -88,6 +110,7 @@ export default function UserProfilePage() {
   const [accountType, setAccountType] = useState<"human" | "agent" | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [following, setFollowing] = useState(false);
@@ -122,6 +145,7 @@ export default function UserProfilePage() {
         setAccountType(data.accountType);
         setProfile(data.profile);
         setPosts(data.posts || []);
+        setRecommendations(data.recommendations || []);
         // Use isFollowing from API response - no extra call needed!
         if (data.profile.isFollowing !== undefined) {
           setFollowing(data.profile.isFollowing);
@@ -376,20 +400,127 @@ export default function UserProfilePage() {
               )}
             </div>
 
-            {/* Skills (for agents) */}
+            {/* Skills Portfolio (for agents) */}
             {accountType === "agent" && profile.skills && profile.skills.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold mb-2">Skills</h3>
-                <div className="flex flex-wrap gap-2">
-                  {profile.skills.map((skill) => (
-                    <span
-                      key={skill}
-                      className="text-sm bg-secondary px-3 py-1 rounded-full"
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold mb-3">Skills Portfolio</h3>
+                <div className="grid gap-3">
+                  {profile.skills.map((skill, index) => (
+                    <div
+                      key={skill.name || index}
+                      className="bg-secondary/50 rounded-lg p-4 border border-border/50"
                     >
-                      {skill}
-                    </span>
+                      <h4 className="font-medium text-foreground">{skill.name}</h4>
+                      {skill.description && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {skill.description}
+                        </p>
+                      )}
+                      {skill.installInstructions && (
+                        <details className="mt-2">
+                          <summary className="text-xs text-primary cursor-pointer hover:underline">
+                            How to use this skill
+                          </summary>
+                          <div className="mt-2 text-xs text-muted-foreground bg-background/50 rounded p-2 whitespace-pre-wrap">
+                            {skill.installInstructions}
+                          </div>
+                        </details>
+                      )}
+                    </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Recommendations (for agents) */}
+            {accountType === "agent" && (
+              <div className="mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold">
+                    Recommendations
+                    {profile.recommendationCount !== undefined && profile.recommendationCount > 0 && (
+                      <span className="text-muted-foreground font-normal ml-2">
+                        ({profile.recommendationCount})
+                      </span>
+                    )}
+                  </h3>
+                  {profile.averageRating && (
+                    <div className="flex items-center gap-1 text-sm">
+                      <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
+                      <span>{profile.averageRating.toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
+                {recommendations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground italic">
+                    No recommendations yet
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {recommendations.map((rec) => (
+                      <div
+                        key={rec.id}
+                        className="bg-secondary/30 rounded-lg p-4 border border-border/50"
+                      >
+                        <div className="flex items-start gap-3">
+                          <Link href={`/user/${rec.fromUser.username}`}>
+                            <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-sm flex-shrink-0">
+                              {rec.fromUser.avatarUrl ? (
+                                <img
+                                  src={rec.fromUser.avatarUrl}
+                                  alt={rec.fromUser.displayName}
+                                  className="w-full h-full rounded-full object-cover"
+                                />
+                              ) : (
+                                rec.fromUser.displayName.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                          </Link>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Link
+                                href={`/user/${rec.fromUser.username}`}
+                                className="font-medium hover:underline"
+                              >
+                                {rec.fromUser.displayName}
+                              </Link>
+                              {rec.rating && (
+                                <div className="flex items-center gap-0.5">
+                                  {[...Array(5)].map((_, i) => (
+                                    <Star
+                                      key={i}
+                                      className={`w-3 h-3 ${
+                                        i < rec.rating!
+                                          ? "text-yellow-500 fill-yellow-500"
+                                          : "text-muted-foreground/30"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-sm mt-1">{rec.text}</p>
+                            {rec.skillTags.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {rec.skillTags.map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {new Date(rec.createdAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
