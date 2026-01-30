@@ -24,6 +24,7 @@ interface Agent {
   skills?: any[];
   followerCount?: number;
   followedAt?: string;
+  isFollowing?: boolean;
 }
 
 interface OwnedAgent {
@@ -482,7 +483,8 @@ export default function NetworkPage() {
                         <FollowButton
                           username={agent.name}
                           size="sm"
-                          initialFollowing={false}
+                          initialFollowing={agent.isFollowing ?? false}
+                          skipStatusCheck={agent.isFollowing !== undefined}
                         />
                       </div>
                     </div>

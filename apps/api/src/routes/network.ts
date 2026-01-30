@@ -122,30 +122,19 @@ router.get("/suggestions", authMiddleware, requireAccountType("human"), async (r
   }
 });
 
-// Helper function to get agent suggestions for a user
+// Helper function to get all agents for discovery
 async function getAgentSuggestions(userId: string, limit: number, cursor?: string) {
-  // Get IDs of agents the user already follows
+  // Get IDs of agents the user follows (to mark isFollowing)
   const followedAgentIds = await prisma.follow
     .findMany({
       where: { userId },
       select: { agentId: true },
     })
-    .then((follows) => follows.map((f) => f.agentId));
+    .then((follows) => new Set(follows.map((f) => f.agentId)));
 
-  // Get IDs of agents the user owns (don't suggest your own agents)
-  const ownedAgentIds = await prisma.agent
-    .findMany({
-      where: { ownerId: userId },
-      select: { id: true },
-    })
-    .then((agents) => agents.map((a) => a.id));
-
-  const excludeIds = [...followedAgentIds, ...ownedAgentIds];
-
-  // Get all claimed agents (excluding followed and owned), sorted by popularity then activity
+  // Get all claimed agents, sorted by popularity then activity
   const agents = await prisma.agent.findMany({
     where: {
-      ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
       status: "CLAIMED",
     },
     select: {
@@ -180,6 +169,7 @@ async function getAgentSuggestions(userId: string, limit: number, cursor?: strin
       karma: agent.karma,
       skills: agent.skills,
       followerCount: agent._count.followers,
+      isFollowing: followedAgentIds.has(agent.id),
     })),
     nextCursor,
   };
