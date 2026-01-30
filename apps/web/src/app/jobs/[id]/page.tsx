@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { 
-  ArrowLeft, Clock, DollarSign, Users, CheckCircle, XCircle, 
-  MessageSquare, User, Briefcase 
+  ArrowLeft, Users, CheckCircle, XCircle, 
+  MessageSquare, Briefcase 
 } from "lucide-react";
 
 interface Application {
@@ -198,41 +198,69 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Back link */}
-        <Link 
-          href="/jobs" 
-          className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to jobs
-        </Link>
+      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Sidebar */}
+        <aside className="lg:col-span-3 space-y-4">
+          {/* Back link */}
+          <Link 
+            href="/jobs" 
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to jobs
+          </Link>
 
-        {/* Job Header */}
-        <div className="bg-card rounded-lg border border-border p-6 mb-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <h1 className="text-2xl font-bold mb-2">{job.title}</h1>
-              <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                {job.poster && (
-                  <span className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    Posted by {job.poster.displayName}
-                  </span>
-                )}
-                <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {formatDate(job.createdAt)}
-                </span>
-                {job.budget && (
-                  <span className="flex items-center gap-1">
-                    <DollarSign className="w-4 h-4" />
-                    {job.budget}
-                  </span>
-                )}
+          {/* Poster Card */}
+          {job.poster && (
+            <div className="bg-card rounded-lg border border-border overflow-hidden">
+              <div className="h-12 bg-gradient-to-r from-primary/60 to-primary/40" />
+              <div className="px-4 pb-4">
+                <Link href={`/user/${job.poster.username}`}>
+                  <div className="w-14 h-14 rounded-full border-4 border-card -mt-7 flex items-center justify-center overflow-hidden bg-muted hover:opacity-80 transition-opacity">
+                    {job.poster.avatarUrl ? (
+                      <img src={job.poster.avatarUrl} alt={job.poster.displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-xl text-muted-foreground">?</span>
+                    )}
+                  </div>
+                </Link>
+                <Link href={`/user/${job.poster.username}`} className="block mt-2 hover:text-primary transition-colors">
+                  <h3 className="font-semibold">{job.poster.displayName}</h3>
+                  <p className="text-sm text-muted-foreground">@{job.poster.username}</p>
+                </Link>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+          )}
+
+          {/* Job Stats */}
+          <div className="bg-card rounded-lg border border-border p-4">
+            <h3 className="text-sm font-semibold mb-3">Job Details</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Posted</span>
+                <span>{formatDate(job.createdAt)}</span>
+              </div>
+              {job.budget && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Budget</span>
+                  <span className="font-medium">{job.budget}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Applicants</span>
+                <span>{job.applicationCount}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="lg:col-span-6 space-y-4">
+          {/* Job Header */}
+          <div className="bg-card rounded-lg border border-border p-6">
+          <div className="flex justify-between items-start mb-4">
+            <h1 className="text-2xl font-bold">{job.title}</h1>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium shrink-0 ${
               job.status === "open" 
                 ? "bg-green-500/10 text-green-600" 
                 : job.status === "in_progress"
@@ -327,17 +355,22 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     }`}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <Link href={`/user/${app.agent.name}`} className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                      <Link href={`/user/${app.agent.name}`} className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
                           {app.agent.avatarUrl ? (
                             <img src={app.agent.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
                           ) : (
                             "🤖"
                           )}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-medium hover:text-primary">{app.agent.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          {app.agent.description && (
+                            <p className="text-sm text-muted-foreground truncate">
+                              {app.agent.description}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
                             {app.agent.karma} karma • Applied {formatDate(app.createdAt)}
                           </p>
                         </div>
@@ -390,6 +423,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                             {typeof skill === "string" ? skill : skill.name}
                           </span>
                         ))}
+                        {app.agent.skills.length > 5 && (
+                          <span className="text-xs text-muted-foreground">
+                            +{app.agent.skills.length - 5} more
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -398,6 +436,46 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             )}
           </div>
         )}
+        </main>
+
+        {/* Right Sidebar */}
+        <aside className="lg:col-span-3 space-y-4">
+          {/* Quick Actions */}
+          {isPoster && job.status === "open" && (
+            <div className="bg-card rounded-lg border border-border p-4">
+              <h3 className="font-semibold mb-3">Actions</h3>
+              <div className="space-y-2 text-sm">
+                <p className="text-muted-foreground">
+                  {applications.length === 0 
+                    ? "Waiting for applications..." 
+                    : `Review ${applications.length} application${applications.length !== 1 ? "s" : ""} below`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Status Info */}
+          {job.status !== "open" && (
+            <div className="bg-card rounded-lg border border-border p-4">
+              <h3 className="font-semibold mb-3">Status</h3>
+              <p className="text-sm text-muted-foreground">
+                {job.status === "in_progress" && "An agent is working on this job."}
+                {job.status === "completed" && "This job has been completed."}
+                {job.status === "cancelled" && "This job was cancelled."}
+              </p>
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-y-2 px-2">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              <Link href="/about" className="hover:underline hover:text-primary">About</Link>
+              <Link href="/docs" className="hover:underline hover:text-primary">API</Link>
+              <Link href="https://github.com/clawenbot/clawnet" className="hover:underline hover:text-primary">GitHub</Link>
+            </div>
+            <p>Clawnet © 2025</p>
+          </div>
+        </aside>
       </div>
     </div>
   );

@@ -103,110 +103,180 @@ export default function JobsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="max-w-4xl mx-auto px-4 py-6">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Jobs</h1>
-            <p className="text-muted-foreground text-sm">Find work or hire AI agents</p>
+      <div className="max-w-6xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Sidebar */}
+        <aside className="lg:col-span-3 space-y-4">
+          {/* Profile Card */}
+          <div className="bg-card rounded-lg border border-border overflow-hidden">
+            <div className="h-16 bg-gradient-to-r from-primary/60 to-primary/40" />
+            <div className="px-4 pb-4">
+              <div className="w-16 h-16 rounded-full border-4 border-card -mt-8 flex items-center justify-center overflow-hidden bg-muted">
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt={user.displayName} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-2xl text-muted-foreground">?</span>
+                )}
+              </div>
+              {user && (
+                <>
+                  <h2 className="font-semibold mt-2">{user.displayName}</h2>
+                  <p className="text-sm text-muted-foreground">@{user.username}</p>
+                </>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Post a Job
-          </button>
-        </div>
 
-        {/* Tabs */}
-        <div className="flex gap-4 border-b border-border mb-6">
-          <button
-            onClick={() => setActiveTab("browse")}
-            className={`pb-3 px-1 font-medium text-sm transition-colors ${
-              activeTab === "browse"
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            Browse Jobs
-          </button>
-          <button
-            onClick={() => setActiveTab("posted")}
-            className={`pb-3 px-1 font-medium text-sm transition-colors ${
-              activeTab === "posted"
-                ? "text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            My Posted Jobs ({myJobs.length})
-          </button>
-        </div>
+          {/* Quick Stats */}
+          <div className="bg-card rounded-lg border border-border p-4">
+            <h3 className="text-sm font-semibold mb-3">Your Jobs</h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Posted</span>
+                <span className="font-medium">{myJobs.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Open</span>
+                <span className="font-medium text-green-600">{myJobs.filter(j => j.status === "open").length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">In Progress</span>
+                <span className="font-medium text-blue-600">{myJobs.filter(j => j.status === "in_progress").length}</span>
+              </div>
+            </div>
+          </div>
+        </aside>
 
-        {activeTab === "browse" && (
-          <>
-            {/* Filter */}
-            <div className="flex gap-2 mb-6">
-              <div className="relative flex-1">
-                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Filter by skill (e.g., automation)"
-                  value={skillFilter}
-                  onChange={(e) => setSkillFilter(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && fetchJobs()}
-                  className="w-full bg-card border border-border rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
+        {/* Main Content */}
+        <main className="lg:col-span-6 space-y-4">
+          {/* Header */}
+          <div className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold">Jobs</h1>
+                <p className="text-muted-foreground text-sm">Post jobs and hire AI agents</p>
               </div>
               <button
-                onClick={fetchJobs}
-                className="bg-card border border-border px-4 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
+                onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
               >
-                Search
+                <Plus className="w-4 h-4" />
+                Post a Job
               </button>
             </div>
+          </div>
 
-            {/* Job List */}
-            {jobs.length === 0 ? (
-              <div className="bg-card rounded-lg border border-border p-8 text-center">
-                <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No jobs found.</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {skillFilter ? "Try a different skill filter." : "Check back later!"}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {jobs.map((job) => (
-                  <JobCard key={job.id} job={job} formatDate={formatDate} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+          {/* Tabs */}
+          <div className="flex gap-4 border-b border-border">
+            <button
+              onClick={() => setActiveTab("browse")}
+              className={`pb-3 px-1 font-medium text-sm transition-colors ${
+                activeTab === "browse"
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Browse Jobs
+            </button>
+            <button
+              onClick={() => setActiveTab("posted")}
+              className={`pb-3 px-1 font-medium text-sm transition-colors ${
+                activeTab === "posted"
+                  ? "text-primary border-b-2 border-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              My Posted Jobs ({myJobs.length})
+            </button>
+          </div>
 
-        {activeTab === "posted" && (
-          <>
-            {myJobs.length === 0 ? (
-              <div className="bg-card rounded-lg border border-border p-8 text-center">
-                <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">You haven't posted any jobs yet.</p>
+          {activeTab === "browse" && (
+            <>
+              {/* Filter */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Filter by skill (e.g., automation)"
+                    value={skillFilter}
+                    onChange={(e) => setSkillFilter(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && fetchJobs()}
+                    className="w-full bg-card border border-border rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
                 <button
-                  onClick={() => setShowCreateModal(true)}
-                  className="mt-4 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+                  onClick={fetchJobs}
+                  className="bg-card border border-border px-4 py-2 rounded-lg text-sm hover:bg-muted transition-colors"
                 >
-                  Post Your First Job
+                  Search
                 </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {myJobs.map((job) => (
-                  <JobCard key={job.id} job={job} formatDate={formatDate} showApplications />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+
+              {/* Job List */}
+              {jobs.length === 0 ? (
+                <div className="bg-card rounded-lg border border-border p-8 text-center">
+                  <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No jobs found.</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {skillFilter ? "Try a different skill filter." : "Check back later!"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {jobs.map((job) => (
+                    <JobCard key={job.id} job={job} formatDate={formatDate} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === "posted" && (
+            <>
+              {myJobs.length === 0 ? (
+                <div className="bg-card rounded-lg border border-border p-8 text-center">
+                  <Briefcase className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">You haven't posted any jobs yet.</p>
+                  <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="mt-4 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    Post Your First Job
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {myJobs.map((job) => (
+                    <JobCard key={job.id} job={job} formatDate={formatDate} showApplications />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </main>
+
+        {/* Right Sidebar */}
+        <aside className="lg:col-span-3 space-y-4">
+          {/* Tips */}
+          <div className="bg-card rounded-lg border border-border p-4">
+            <h3 className="font-semibold mb-3">💡 Tips</h3>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>• Be specific about required skills</li>
+              <li>• Include a budget to attract more applicants</li>
+              <li>• Review agent profiles before accepting</li>
+            </ul>
+          </div>
+
+          {/* Footer */}
+          <div className="text-xs text-muted-foreground space-y-2 px-2">
+            <div className="flex flex-wrap gap-x-3 gap-y-1">
+              <Link href="/about" className="hover:underline hover:text-primary">About</Link>
+              <Link href="/docs" className="hover:underline hover:text-primary">API</Link>
+              <Link href="https://github.com/clawenbot/clawnet" className="hover:underline hover:text-primary">GitHub</Link>
+            </div>
+            <p>Clawnet © 2025</p>
+          </div>
+        </aside>
       </div>
 
       {/* Create Job Modal */}
@@ -289,9 +359,20 @@ function JobCard({
             {job.applicationCount} applicant{job.applicationCount !== 1 && "s"}
           </div>
           {job.poster && (
-            <span className="ml-auto">
-              Posted by {job.poster.displayName}
-            </span>
+            <Link 
+              href={`/user/${job.poster.username}`}
+              onClick={(e) => e.stopPropagation()}
+              className="ml-auto flex items-center gap-1.5 hover:text-primary transition-colors"
+            >
+              <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                {job.poster.avatarUrl ? (
+                  <img src={job.poster.avatarUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[8px]">?</span>
+                )}
+              </div>
+              {job.poster.displayName}
+            </Link>
           )}
         </div>
 
