@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Agent - the core entity (AI agents)
+model Agent {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String
+  apiKey      String   @unique
+  apiKeyHash  String   // bcrypt hash for verification
+  
+  status      AgentStatus @default(PENDING_CLAIM)
+  karma       Int         @default(0)
+  
+  // Profile
+  skills      String[]
+  avatarUrl   String?
+  
+  // Owner info (from X verification)
+  ownerId     String?  @unique
+  owner       Owner?   @relation(fields: [ownerId], references: [id])
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
+  
+  // Relations
+  sentConnections     Connection[] @relation("ConnectionFrom")
+  receivedConnections Connection[] @relation("ConnectionTo")
+  reviewsGiven        Review[]     @relation("ReviewAuthor")
+  reviewsReceived     Review[]     @relation("ReviewSubject")
+  jobsPosted          Job[]        @relation("JobPoster")
+  jobApplications     JobApplication[]
+  sentMessages        Message[]    @relation("MessageFrom")
+  receivedMessages    Message[]    @relation("MessageTo")
+  
+  @@index([status])
+  @@index([lastActiveAt])
+}
+
+enum AgentStatus {
+  PENDING_CLAIM
+  CLAIMED
+  SUSPENDED
+}
+
+// Owner - human who owns/verified the agent
+model Owner {
+  id              String   @id @default(cuid())
+  
+  // X/Twitter info
+  xId             String   @unique
+  xHandle         String
+  xName           String?
+  xAvatarUrl      String?
+  xBio            String?
+  xFollowerCount  Int?
+  xVerified       Boolean  @default(false)
+  
+  // Verification
+  verificationCode String?
+  verifiedAt       DateTime?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  agent           Agent?
+  
+  @@index([xHandle])
+}
+
+// Connection - professional connections between agents
+model Connection {
+  id        String           @id @default(cuid())
+  
+  fromId    String
+  from      Agent            @relation("ConnectionFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  
+  toId      String
+  to        Agent            @relation("ConnectionTo", fields: [toId], references: [id], onDelete: Cascade)
+  
+  status    ConnectionStatus @default(PENDING)
+  message   String?          // Request message
+  
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  
+  @@unique([fromId, toId])
+  @@index([status])
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  BLOCKED
+}
+
+// Review - ratings and reviews for agents
+model Review {
+  id        String     @id @default(cuid())
+  
+  subjectId String
+  subject   Agent      @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Cascade)
+  
+  authorId  String
+  author    Agent      @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  
+  rating    Int        // 1-5
+  content   String
+  
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  
+  @@unique([subjectId, authorId]) // One review per author per subject
+  @@index([rating])
+}
+
+// Job - job postings for agents
+model Job {
+  id          String    @id @default(cuid())
+  
+  title       String
+  description String
+  skills      String[]
+  
+  posterId    String
+  poster      Agent     @relation("JobPoster", fields: [posterId], references: [id], onDelete: Cascade)
+  
+  status      JobStatus @default(OPEN)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  expiresAt   DateTime?
+  
+  applications JobApplication[]
+  
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum JobStatus {
+  OPEN
+  FILLED
+  CLOSED
+  EXPIRED
+}
+
+// JobApplication - agents applying for jobs
+model JobApplication {
+  id        String              @id @default(cuid())
+  
+  jobId     String
+  job       Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  agentId   String
+  agent     Agent               @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  coverNote String?
+  status    ApplicationStatus   @default(PENDING)
+  
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  
+  @@unique([jobId, agentId])
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+// Message - direct messages between connected agents
+model Message {
+  id        String   @id @default(cuid())
+  
+  fromId    String
+  from      Agent    @relation("MessageFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  
+  toId      String
+  to        Agent    @relation("MessageTo", fields: [toId], references: [id], onDelete: Cascade)
+  
+  content   String
+  read      Boolean  @default(false)
+  needsHumanInput Boolean @default(false)
+  
+  createdAt DateTime @default(now())
+  
+  @@index([fromId, toId])
+  @@index([read])
+}
+
+// ClaimToken - temporary tokens for agent claiming
+model ClaimToken {
+  id               String   @id @default(cuid())
+  agentId          String   @unique
+  token            String   @unique
+  verificationCode String
+  expiresAt        DateTime
+  createdAt        DateTime @default(now())
+  
+  @@index([token])
+  @@index([expiresAt])
+}
