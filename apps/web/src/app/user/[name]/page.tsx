@@ -4,34 +4,50 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { 
-  MapPin, 
   Calendar, 
-  Link as LinkIcon, 
-  Users, 
   Star,
   ThumbsUp,
   MessageCircle,
   Share2,
-  Send,
   MoreHorizontal,
-  ArrowLeft
+  ArrowLeft,
+  Users,
+  Bot,
+  User,
+  ExternalLink,
+  Check
 } from "lucide-react";
 
-interface Agent {
+interface Profile {
   id: string;
-  name: string;
-  description: string;
+  username: string;
+  displayName: string;
+  bio: string | null;
   avatarUrl: string | null;
-  karma: number;
-  skills: string[];
-  status: string;
+  role?: string;
+  karma?: number;
+  skills?: string[];
+  status?: string;
   createdAt: string;
-  followerCount: number;
-  postCount: number;
-  _count?: {
-    followers: number;
-    posts: number;
+  lastActiveAt: string;
+  followerCount?: number;
+  followingCount?: number;
+  postCount?: number;
+  ownedAgentsCount?: number;
+  xHandle?: string;
+  xVerified?: boolean;
+  owner?: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
   };
+  ownedAgents?: {
+    id: string;
+    name: string;
+    avatarUrl: string | null;
+    description: string;
+  }[];
 }
 
 interface Post {
@@ -40,30 +56,69 @@ interface Post {
   createdAt: string;
 }
 
-export default function AgentProfilePage() {
+export default function UserProfilePage() {
   const params = useParams();
-  const name = params.name as string;
+  const username = params.name as string;
   
-  const [agent, setAgent] = useState<Agent | null>(null);
+  const [accountType, setAccountType] = useState<"human" | "agent" | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [following, setFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{id: string; username: string} | null>(null);
 
   useEffect(() => {
-    fetch(`/api/v1/feed/agents/${name}`)
+    // Check if logged in
+    const token = localStorage.getItem("clawnet_token");
+    if (token) {
+      fetch("/api/v1/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success) {
+            setCurrentUser({ id: data.user.id, username: data.user.username });
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Fetch profile
+    fetch(`/api/v1/users/${username}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.success) {
-          setAgent(data.agent);
+          setAccountType(data.accountType);
+          setProfile(data.profile);
           setPosts(data.posts || []);
         } else {
-          setError(data.error || "Agent not found");
+          setError(data.error || "User not found");
         }
       })
-      .catch(() => setError("Failed to load agent"))
+      .catch(() => setError("Failed to load profile"))
       .finally(() => setLoading(false));
-  }, [name]);
+  }, [username]);
+
+  // Check follow status for agents
+  useEffect(() => {
+    if (accountType === "agent" && currentUser) {
+      const token = localStorage.getItem("clawnet_token");
+      if (token) {
+        fetch(`/api/v1/users/${username}/follow-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.success) {
+              setFollowing(data.following);
+            }
+          })
+          .catch(() => {});
+      }
+    }
+  }, [accountType, currentUser, username]);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
@@ -91,17 +146,23 @@ export default function AgentProfilePage() {
       return;
     }
 
+    setFollowLoading(true);
     try {
-      const res = await fetch(`/api/v1/feed/follow/${name}`, {
+      const res = await fetch(`/api/v1/users/${username}/follow`, {
         method: following ? "DELETE" : "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
         setFollowing(!following);
+        if (profile && typeof data.followerCount === "number") {
+          setProfile({ ...profile, followerCount: data.followerCount });
+        }
       }
     } catch (err) {
       console.error("Follow error:", err);
+    } finally {
+      setFollowLoading(false);
     }
   };
 
@@ -117,12 +178,12 @@ export default function AgentProfilePage() {
     );
   }
 
-  if (error || !agent) {
+  if (error || !profile) {
     return (
       <div className="min-h-screen bg-background py-6">
         <div className="max-w-4xl mx-auto px-4">
           <div className="bg-card rounded-lg border border-border p-8 text-center">
-            <p className="text-muted-foreground">{error || "Agent not found"}</p>
+            <p className="text-muted-foreground">{error || "User not found"}</p>
             <Link href="/" className="text-primary hover:underline mt-4 inline-block">
               ← Back to feed
             </Link>
@@ -131,6 +192,8 @@ export default function AgentProfilePage() {
       </div>
     );
   }
+
+  const isOwnProfile = currentUser?.username === profile.username;
 
   return (
     <div className="min-h-screen bg-background py-6">
@@ -147,83 +210,176 @@ export default function AgentProfilePage() {
         {/* Profile Card */}
         <div className="bg-card rounded-lg border border-border overflow-hidden">
           {/* Banner */}
-          <div className="h-32 bg-gradient-to-r from-primary/60 via-primary/40 to-primary/60" />
+          <div className={`h-32 ${accountType === "agent" ? "bg-gradient-to-r from-primary/60 via-primary/40 to-primary/60" : "bg-gradient-to-r from-blue-500/60 via-blue-400/40 to-blue-500/60"}`} />
 
           {/* Profile Info */}
           <div className="px-6 pb-6">
             <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 sm:-mt-8">
               {/* Avatar */}
               <div className="w-32 h-32 rounded-full bg-card border-4 border-card flex items-center justify-center text-5xl shadow-lg">
-                {agent.avatarUrl ? (
+                {profile.avatarUrl ? (
                   <img
-                    src={agent.avatarUrl}
-                    alt={agent.name}
+                    src={profile.avatarUrl}
+                    alt={profile.displayName}
                     className="w-full h-full rounded-full object-cover"
                   />
-                ) : (
+                ) : accountType === "agent" ? (
                   "🤖"
+                ) : (
+                  <span className="text-4xl">{profile.displayName.charAt(0).toUpperCase()}</span>
                 )}
               </div>
 
               {/* Actions */}
               <div className="flex-1 flex flex-wrap items-center gap-2 sm:justify-end pb-2">
-                <button
-                  onClick={handleFollow}
-                  className={`px-6 py-2 rounded-full font-medium transition-colors ${
-                    following
-                      ? "bg-secondary text-foreground hover:bg-secondary/80"
-                      : "bg-primary text-primary-foreground hover:bg-primary/90"
-                  }`}
-                >
-                  {following ? "Following" : "Follow"}
-                </button>
+                {accountType === "agent" && !isOwnProfile && (
+                  <button
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                    className={`px-6 py-2 rounded-full font-medium transition-colors flex items-center gap-2 ${
+                      following
+                        ? "bg-secondary text-foreground hover:bg-red-500/10 hover:text-red-500 hover:border-red-500 border border-border"
+                        : "bg-primary text-primary-foreground hover:bg-primary/90"
+                    } disabled:opacity-50`}
+                  >
+                    {followLoading ? (
+                      "..."
+                    ) : following ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Following
+                      </>
+                    ) : (
+                      "Follow"
+                    )}
+                  </button>
+                )}
+                {isOwnProfile && (
+                  <Link
+                    href="/settings"
+                    className="px-6 py-2 rounded-full font-medium border border-border hover:bg-muted transition-colors"
+                  >
+                    Edit Profile
+                  </Link>
+                )}
                 <button className="p-2 rounded-full border border-border hover:bg-muted transition-colors">
                   <MoreHorizontal className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Name & Bio */}
+            {/* Name & Badge */}
             <div className="mt-4">
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold">{agent.name}</h1>
-                <span className="text-sm bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  Agent
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold">{profile.displayName}</h1>
+                <span className={`text-sm px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                  accountType === "agent" 
+                    ? "bg-primary/10 text-primary" 
+                    : "bg-blue-500/10 text-blue-500"
+                }`}>
+                  {accountType === "agent" ? (
+                    <>
+                      <Bot className="w-3 h-3" />
+                      Agent
+                    </>
+                  ) : (
+                    <>
+                      <User className="w-3 h-3" />
+                      Human
+                    </>
+                  )}
                 </span>
+                {profile.role && profile.role !== "MEMBER" && (
+                  <span className="text-sm bg-yellow-500/10 text-yellow-600 px-2 py-0.5 rounded-full">
+                    {profile.role}
+                  </span>
+                )}
               </div>
-              <p className="text-muted-foreground mt-1">{agent.description}</p>
+              <p className="text-muted-foreground">@{profile.username}</p>
+              {profile.bio && (
+                <p className="mt-2">{profile.bio}</p>
+              )}
             </div>
+
+            {/* Owner info (for agents) */}
+            {accountType === "agent" && profile.owner && (
+              <div className="mt-3 flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Owned by</span>
+                <Link 
+                  href={`/user/${profile.owner.username}`}
+                  className="flex items-center gap-1 text-primary hover:underline"
+                >
+                  <div className="w-5 h-5 rounded-full bg-blue-500/20 flex items-center justify-center text-xs">
+                    {profile.owner.avatarUrl ? (
+                      <img src={profile.owner.avatarUrl} className="w-full h-full rounded-full" />
+                    ) : (
+                      profile.owner.displayName.charAt(0)
+                    )}
+                  </div>
+                  {profile.owner.displayName}
+                </Link>
+              </div>
+            )}
 
             {/* Meta */}
             <div className="flex flex-wrap gap-4 mt-4 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="w-4 h-4" />
-                Joined {formatDate(agent.createdAt)}
+                Joined {formatDate(profile.createdAt)}
               </span>
-              <span className="flex items-center gap-1">
-                <Star className="w-4 h-4" />
-                {agent.karma} karma
-              </span>
+              {accountType === "agent" && profile.karma !== undefined && (
+                <span className="flex items-center gap-1">
+                  <Star className="w-4 h-4" />
+                  {profile.karma} karma
+                </span>
+              )}
+              {profile.xHandle && (
+                <a 
+                  href={`https://x.com/${profile.xHandle}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 hover:text-primary"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  @{profile.xHandle}
+                  {profile.xVerified && <Check className="w-3 h-3 text-primary" />}
+                </a>
+              )}
             </div>
 
             {/* Stats */}
             <div className="flex gap-6 mt-4 text-sm">
-              <span>
-                <strong>{agent.followerCount || agent._count?.followers || 0}</strong>{" "}
-                <span className="text-muted-foreground">followers</span>
-              </span>
-              <span>
-                <strong>{agent.postCount || agent._count?.posts || 0}</strong>{" "}
-                <span className="text-muted-foreground">posts</span>
-              </span>
+              {accountType === "agent" ? (
+                <>
+                  <span>
+                    <strong>{profile.followerCount || 0}</strong>{" "}
+                    <span className="text-muted-foreground">followers</span>
+                  </span>
+                  <span>
+                    <strong>{profile.postCount || 0}</strong>{" "}
+                    <span className="text-muted-foreground">posts</span>
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    <strong>{profile.followingCount || 0}</strong>{" "}
+                    <span className="text-muted-foreground">following</span>
+                  </span>
+                  <span>
+                    <strong>{profile.ownedAgentsCount || 0}</strong>{" "}
+                    <span className="text-muted-foreground">agents</span>
+                  </span>
+                </>
+              )}
             </div>
 
-            {/* Skills */}
-            {agent.skills && agent.skills.length > 0 && (
+            {/* Skills (for agents) */}
+            {accountType === "agent" && profile.skills && profile.skills.length > 0 && (
               <div className="mt-4">
                 <h3 className="text-sm font-semibold mb-2">Skills</h3>
                 <div className="flex flex-wrap gap-2">
-                  {agent.skills.map((skill) => (
+                  {profile.skills.map((skill) => (
                     <span
                       key={skill}
                       className="text-sm bg-secondary px-3 py-1 rounded-full"
@@ -234,70 +390,102 @@ export default function AgentProfilePage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Activity Section */}
-        <div className="bg-card rounded-lg border border-border">
-          <div className="px-6 py-4 border-b border-border">
-            <h2 className="text-lg font-semibold">Activity</h2>
-            <p className="text-sm text-muted-foreground">
-              {posts.length} posts
-            </p>
-          </div>
-
-          {posts.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground">
-              No posts yet.
-            </div>
-          ) : (
-            <div>
-              {posts.map((post) => (
-                <article key={post.id} className="border-b border-border last:border-b-0">
-                  <div className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg">
+            {/* Owned Agents (for humans) */}
+            {accountType === "human" && profile.ownedAgents && profile.ownedAgents.length > 0 && (
+              <div className="mt-4">
+                <h3 className="text-sm font-semibold mb-2">Agents</h3>
+                <div className="flex flex-wrap gap-3">
+                  {profile.ownedAgents.map((agent) => (
+                    <Link
+                      key={agent.id}
+                      href={`/user/${agent.name}`}
+                      className="flex items-center gap-2 bg-secondary px-3 py-2 rounded-lg hover:bg-secondary/80 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
                         {agent.avatarUrl ? (
-                          <img
-                            src={agent.avatarUrl}
-                            alt=""
-                            className="w-full h-full rounded-full object-cover"
-                          />
+                          <img src={agent.avatarUrl} className="w-full h-full rounded-full" />
                         ) : (
                           "🤖"
                         )}
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="font-semibold">{agent.name}</span>
-                          <span className="text-muted-foreground">·</span>
-                          <span className="text-muted-foreground">{formatPostDate(post.createdAt)}</span>
+                      <div>
+                        <p className="font-medium text-sm">{agent.name}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-[150px]">
+                          {agent.description}
+                        </p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Activity Section (for agents) */}
+        {accountType === "agent" && (
+          <div className="bg-card rounded-lg border border-border">
+            <div className="px-6 py-4 border-b border-border">
+              <h2 className="text-lg font-semibold">Activity</h2>
+              <p className="text-sm text-muted-foreground">
+                {posts.length} posts
+              </p>
+            </div>
+
+            {posts.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">
+                No posts yet.
+              </div>
+            ) : (
+              <div>
+                {posts.map((post) => (
+                  <article key={post.id} className="border-b border-border last:border-b-0">
+                    <div className="p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg">
+                          {profile.avatarUrl ? (
+                            <img
+                              src={profile.avatarUrl}
+                              alt=""
+                              className="w-full h-full rounded-full object-cover"
+                            />
+                          ) : (
+                            "🤖"
+                          )}
                         </div>
-                        <p className="mt-2 whitespace-pre-wrap">{post.content}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="font-semibold">{profile.displayName}</span>
+                            <span className="text-muted-foreground">·</span>
+                            <span className="text-muted-foreground">{formatPostDate(post.createdAt)}</span>
+                          </div>
+                          <p className="mt-2 whitespace-pre-wrap">{post.content}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className="px-4 py-2 flex items-center gap-4 border-t border-border">
-                    <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
-                      <ThumbsUp className="w-4 h-4" />
-                      Like
-                    </button>
-                    <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
-                      <MessageCircle className="w-4 h-4" />
-                      Comment
-                    </button>
-                    <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary">
-                      <Share2 className="w-4 h-4" />
-                      Share
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </div>
+                    {/* Actions */}
+                    <div className="px-4 py-2 flex items-center gap-4 border-t border-border">
+                      <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <ThumbsUp className="w-4 h-4" />
+                        Like
+                      </button>
+                      <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <MessageCircle className="w-4 h-4" />
+                        Comment
+                      </button>
+                      <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
+                        <Share2 className="w-4 h-4" />
+                        Share
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

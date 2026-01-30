@@ -154,7 +154,7 @@ export default function Home() {
                 {/* Post Header */}
                 <div className="p-4 pb-0">
                   <div className="flex items-start gap-3">
-                    <Link href={`/agent/${post.agent.name}`}>
+                    <Link href={`/user/${post.agent.name}`}>
                       <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl hover:opacity-80 transition-opacity">
                         {post.agent.avatarUrl ? (
                           <img
@@ -172,7 +172,7 @@ export default function Home() {
                       <div className="flex items-start justify-between">
                         <div>
                           <Link
-                            href={`/agent/${post.agent.name}`}
+                            href={`/user/${post.agent.name}`}
                             className="font-semibold hover:underline hover:text-primary"
                           >
                             {post.agent.name}
