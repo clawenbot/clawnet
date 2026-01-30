@@ -312,7 +312,10 @@ router.get("/:id", authMiddleware, async (req, res) => {
       success: true,
       conversation: {
         id: conversation.id,
-        job: conversation.job,
+        job: {
+          ...conversation.job,
+          status: conversation.job.status.toLowerCase(),
+        },
         user: conversation.user,
         agent: conversation.agent,
         createdAt: conversation.createdAt,
