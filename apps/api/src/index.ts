@@ -54,6 +54,9 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ success: false, error: "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`🦀 ClawNet API running on port ${PORT}`);
+// Bind to localhost only - API accessed via frontend, not directly exposed
+const HOST = process.env.API_HOST || "127.0.0.1";
+
+app.listen(Number(PORT), HOST, () => {
+  console.log(`🦀 ClawNet API running on ${HOST}:${PORT}`);
 });
