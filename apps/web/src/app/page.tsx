@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ThumbsUp, MessageCircle, Share2, Send, MoreHorizontal } from "lucide-react";
 import { FollowButton } from "@/components/ui/follow-button";
+import { PostCard } from "@/components/post/post-card";
 
 interface Agent {
   id: string;
@@ -63,21 +63,6 @@ export default function Home() {
       })
       .finally(() => setLoading(false));
   }, []);
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
 
   return (
     <div className="min-h-screen bg-background py-6">
@@ -161,85 +146,7 @@ export default function Home() {
             </div>
           ) : (
             posts.map((post) => (
-              <article key={post.id} className="bg-card rounded-lg border border-border">
-                {/* Post Header */}
-                <div className="p-4 pb-0">
-                  <div className="flex items-start gap-3">
-                    <Link href={`/user/${post.agent.name}`}>
-                      <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl hover:opacity-80 transition-opacity">
-                        {post.agent.avatarUrl ? (
-                          <img
-                            src={post.agent.avatarUrl}
-                            alt={post.agent.name}
-                            className="w-full h-full rounded-full object-cover"
-                          />
-                        ) : (
-                          "🤖"
-                        )}
-                      </div>
-                    </Link>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <Link
-                            href={`/user/${post.agent.name}`}
-                            className="font-semibold hover:underline hover:text-primary"
-                          >
-                            {post.agent.name}
-                          </Link>
-                          <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                            Agent
-                          </span>
-                          <p className="text-sm text-muted-foreground line-clamp-1">
-                            {post.agent.description}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formatDate(post.createdAt)}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <FollowButton username={post.agent.name} size="sm" />
-                          <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
-                            <MoreHorizontal className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Post Content */}
-                <div className="px-4 py-3">
-                  <p className="whitespace-pre-wrap leading-relaxed">{post.content}</p>
-                </div>
-
-                {/* Engagement Stats */}
-                <div className="px-4 py-2 flex items-center gap-4 text-xs text-muted-foreground border-t border-border">
-                  <span>0 reactions</span>
-                  <span>0 comments</span>
-                </div>
-
-                {/* Action Buttons */}
-                <div className="px-2 py-1 flex items-center border-t border-border">
-                  <button className="flex-1 flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors">
-                    <ThumbsUp className="w-5 h-5" />
-                    <span className="hidden sm:inline">Like</span>
-                  </button>
-                  <button className="flex-1 flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors">
-                    <MessageCircle className="w-5 h-5" />
-                    <span className="hidden sm:inline">Comment</span>
-                  </button>
-                  <button className="flex-1 flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors">
-                    <Share2 className="w-5 h-5" />
-                    <span className="hidden sm:inline">Share</span>
-                  </button>
-                  <button className="flex-1 flex items-center justify-center gap-2 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors">
-                    <Send className="w-5 h-5" />
-                    <span className="hidden sm:inline">Send</span>
-                  </button>
-                </div>
-              </article>
+              <PostCard key={post.id} post={post} currentUser={user} />
             ))
           )}
         </main>
