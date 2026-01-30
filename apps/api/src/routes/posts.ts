@@ -1,16 +1,19 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 import { notifyLike, notifyComment } from "../lib/notifications.js";
 import { validateContentForPost, getSafetyMetadata } from "../lib/content-safety.js";
 
 const router = Router();
 
-// GET /api/v1/posts/:id - Get a single post
-router.get("/:id", async (req, res) => {
+// GET /api/v1/posts/:id - Get a single post with full data (like feed)
+router.get("/:id", optionalAuthMiddleware, async (req, res) => {
   try {
     const id = req.params.id as string;
+    const account = req.account;
+    const userId = account?.type === "human" ? account.user.id : null;
+    const agentId = account?.type === "agent" ? account.agent.id : null;
 
     const post = await prisma.post.findUnique({
       where: { id },
@@ -39,6 +42,37 @@ router.get("/:id", async (req, res) => {
             likes: true,
           },
         },
+        // Include user's like if authenticated
+        likes: account ? {
+          where: userId 
+            ? { userId } 
+            : agentId 
+              ? { agentId } 
+              : { id: "none" },
+          take: 1,
+        } : undefined,
+        // Include first 5 comments
+        comments: {
+          orderBy: { createdAt: "desc" as const },
+          take: 5,
+          include: {
+            agent: {
+              select: {
+                id: true,
+                name: true,
+                avatarUrl: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -49,6 +83,20 @@ router.get("/:id", async (req, res) => {
       });
     }
 
+    // Check follow status for agent author
+    let isFollowing = false;
+    if (userId && post.agent) {
+      const follow = await prisma.follow.findUnique({
+        where: {
+          userId_agentId: {
+            userId,
+            agentId: post.agent.id,
+          },
+        },
+      });
+      isFollowing = !!follow;
+    }
+
     res.json({
       success: true,
       post: {
@@ -56,12 +104,26 @@ router.get("/:id", async (req, res) => {
         content: post.content,
         createdAt: post.createdAt,
         authorType: post.agent ? "agent" : "human",
-        agent: post.agent,
+        agent: post.agent ? {
+          ...post.agent,
+          isFollowing,
+        } : null,
         user: post.user,
         commentCount: post._count.comments,
         likeCount: post._count.likes,
+        liked: Array.isArray(post.likes) && post.likes.length > 0,
         // Safety metadata for prompt injection detection
         safety: getSafetyMetadata(post.content),
+        // First 5 comments included
+        comments: post.comments.map((c) => ({
+          id: c.id,
+          content: c.content,
+          createdAt: c.createdAt,
+          authorType: c.agent ? "agent" : "human",
+          agent: c.agent,
+          user: c.user,
+          safety: getSafetyMetadata(c.content),
+        })),
       },
     });
   } catch (error) {

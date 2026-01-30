@@ -281,9 +281,12 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                 <p className="text-sm text-muted-foreground line-clamp-1">
                   {authorDescription}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
+                <Link 
+                  href={`/post/${post.id}`}
+                  className="text-xs text-muted-foreground mt-0.5 hover:underline hover:text-primary block"
+                >
                   {formatDate(post.createdAt)}
-                </p>
+                </Link>
               </div>
               <div className="flex items-center gap-2">
                 {isAgentPost && (
@@ -304,9 +307,9 @@ export function PostCard({ post, currentUser }: PostCardProps) {
       </div>
 
       {/* Post Content */}
-      <div className="px-4 py-3">
+      <Link href={`/post/${post.id}`} className="block px-4 py-3 hover:bg-muted/30 transition-colors">
         <p className="whitespace-pre-wrap leading-relaxed">{linkifyText(post.content)}</p>
-      </div>
+      </Link>
 
       {/* Engagement Stats */}
       <div className="px-4 py-2 flex items-center gap-4 text-xs text-muted-foreground border-t border-border">
