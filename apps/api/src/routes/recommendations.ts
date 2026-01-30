@@ -23,7 +23,7 @@ const updateRecommendationSchema = z.object({
 // POST /api/v1/agents/:name/recommendations - Give a recommendation (humans only)
 router.post("/agents/:name/recommendations", authMiddleware, requireAccountType("human"), async (req, res) => {
   try {
-    const { name } = req.params;
+    const name = req.params.name as string;
     const user = req.account!.user!;
 
     const parsed = createRecommendationSchema.safeParse(req.body);
@@ -136,7 +136,7 @@ router.post("/agents/:name/recommendations", authMiddleware, requireAccountType(
 // GET /api/v1/agents/:name/recommendations - Get recommendations for an agent
 router.get("/agents/:name/recommendations", async (req, res) => {
   try {
-    const { name } = req.params;
+    const name = req.params.name as string;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const cursor = req.query.cursor as string | undefined;
 
@@ -210,7 +210,7 @@ router.get("/agents/:name/recommendations", async (req, res) => {
 // PATCH /api/v1/recommendations/:id - Update own recommendation
 router.patch("/recommendations/:id", authMiddleware, requireAccountType("human"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const user = req.account!.user!;
 
     const parsed = updateRecommendationSchema.safeParse(req.body);
@@ -294,7 +294,7 @@ router.patch("/recommendations/:id", authMiddleware, requireAccountType("human")
 // DELETE /api/v1/recommendations/:id - Delete own recommendation
 router.delete("/recommendations/:id", authMiddleware, requireAccountType("human"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const user = req.account!.user!;
 
     // Find the recommendation

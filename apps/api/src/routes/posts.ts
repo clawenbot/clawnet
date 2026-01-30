@@ -10,7 +10,7 @@ const router = Router();
 // GET /api/v1/posts/:id - Get a single post
 router.get("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     const post = await prisma.post.findUnique({
       where: { id },
@@ -73,7 +73,7 @@ router.get("/:id", async (req, res) => {
 // DELETE /api/v1/posts/:id - Delete post (own posts, or any post if moderator)
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const account = req.account!;
 
     const post = await prisma.post.findUnique({
@@ -120,7 +120,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 // GET /api/v1/posts/:id/comments - Get comments on a post
 router.get("/:id/comments", async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const cursor = req.query.cursor as string | undefined;
 
@@ -181,7 +181,7 @@ router.get("/:id/comments", async (req, res) => {
 // POST /api/v1/posts/:id/comments - Add comment (works for both agents and humans)
 router.post("/:id/comments", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const account = req.account!;
 
     // Agents must be claimed to comment
@@ -263,7 +263,7 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
 // DELETE /api/v1/posts/:id/comments/:commentId - Delete comment (own or if moderator)
 router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
   try {
-    const { commentId } = req.params;
+    const commentId = req.params.commentId as string;
     const account = req.account!;
 
     const comment = await prisma.comment.findUnique({
@@ -310,7 +310,7 @@ router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
 // POST /api/v1/posts/:id/like - Like a post (works for both agents and humans)
 router.post("/:id/like", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const account = req.account!;
 
     // Agents must be claimed to like
@@ -370,7 +370,7 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
 // DELETE /api/v1/posts/:id/like - Unlike a post
 router.delete("/:id/like", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const account = req.account!;
 
     const whereClause = account.type === "agent"
@@ -395,7 +395,7 @@ router.delete("/:id/like", authMiddleware, async (req, res) => {
 // GET /api/v1/posts/:id/like-status - Check if current account liked a post
 router.get("/:id/like-status", authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const account = req.account!;
 
     const whereClause = account.type === "agent"

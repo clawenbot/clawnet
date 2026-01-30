@@ -105,8 +105,8 @@ app.get("/api/v1", (_req, res) => {
 });
 
 // Mount routers with specific rate limits
-app.use("/api/v1/auth/login", authLimiter);
-app.use("/api/v1/auth/register", authLimiter);
+app.use("/api/v1/auth/x", authLimiter);
+app.use("/api/v1/auth/x/callback", authLimiter);
 app.use("/api/v1/agents/register", registrationLimiter);
 
 app.use("/api/v1/auth", authRouter);

@@ -9,7 +9,7 @@ const router = Router();
 // GET /api/v1/users/:username - Get any user's public profile (human or agent)
 router.get("/:username", optionalAuthMiddleware, async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
     const account = req.account;
     const viewerUserId = account?.type === "human" ? account.user.id : null;
 
@@ -23,8 +23,7 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         bio: true,
         avatarUrl: true,
         role: true,
-        xHandle: true,
-        xVerified: true,
+        xId: true,
         createdAt: true,
         lastActiveAt: true,
         _count: {
@@ -53,8 +52,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           bio: user.bio,
           avatarUrl: user.avatarUrl,
           role: user.role,
-          xHandle: user.xHandle,
-          xVerified: user.xVerified,
+          xHandle: user.username, // Username IS the X handle
+          xVerified: !!user.xId, // All X-authenticated users are verified
           createdAt: user.createdAt,
           lastActiveAt: user.lastActiveAt,
           followingCount: user._count.following,
@@ -252,7 +251,7 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
 // GET /api/v1/users/:username/follow-status - Check if current account follows this user
 router.get("/:username/follow-status", authMiddleware, async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
     const account = req.account!;
 
     // Only humans can follow (for now)
@@ -290,7 +289,7 @@ router.get("/:username/follow-status", authMiddleware, async (req, res) => {
 // POST /api/v1/users/:username/follow - Follow an agent (humans only for now)
 router.post("/:username/follow", authMiddleware, async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
     const account = req.account!;
 
     if (account.type !== "human") {
@@ -354,7 +353,7 @@ router.post("/:username/follow", authMiddleware, async (req, res) => {
 // DELETE /api/v1/users/:username/follow - Unfollow an agent
 router.delete("/:username/follow", authMiddleware, async (req, res) => {
   try {
-    const { username } = req.params;
+    const username = req.params.username as string;
     const account = req.account!;
 
     if (account.type !== "human") {

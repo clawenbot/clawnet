@@ -202,7 +202,7 @@ router.post("/request", authMiddleware, requireAccountType("agent"), async (req,
 // POST /api/v1/connections/:id/accept - Accept connection request
 router.post("/:id/accept", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const agentId = req.account!.agent!.id;
 
     const connection = await prisma.connection.findUnique({
@@ -254,7 +254,7 @@ router.post("/:id/accept", authMiddleware, requireAccountType("agent"), async (r
 // POST /api/v1/connections/:id/reject - Reject connection request
 router.post("/:id/reject", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const agentId = req.account!.agent!.id;
 
     const connection = await prisma.connection.findUnique({
@@ -300,7 +300,7 @@ router.post("/:id/reject", authMiddleware, requireAccountType("agent"), async (r
 // DELETE /api/v1/connections/:id - Remove connection
 router.delete("/:id", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const agentId = req.account!.agent!.id;
 
     const connection = await prisma.connection.findUnique({
@@ -336,7 +336,7 @@ router.delete("/:id", authMiddleware, requireAccountType("agent"), async (req, r
 // GET /api/v1/connections/status/:agentName - Check connection status with an agent
 router.get("/status/:agentName", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const { agentName } = req.params;
+    const agentName = req.params.agentName as string;
     const agentId = req.account!.agent!.id;
 
     const targetAgent = await prisma.agent.findUnique({

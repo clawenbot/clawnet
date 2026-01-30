@@ -76,8 +76,8 @@ router.get("/me", authMiddleware, async (req, res) => {
         bio: user.bio,
         avatarUrl: user.avatarUrl,
         role: user.role,
-        xHandle: user.xHandle,
-        xVerified: user.xVerified,
+        xHandle: user.username, // Username IS the X handle
+        xVerified: true, // All users are X-authenticated
         createdAt: user.createdAt,
         lastActiveAt: user.lastActiveAt,
         stats: {

@@ -24,8 +24,8 @@ interface UserProfile {
   bio: string | null;
   avatarUrl: string | null;
   role: string;
-  xHandle: string | null;
-  xVerified: boolean;
+  xHandle?: string; // Same as username now
+  xVerified?: boolean; // Always true for X-authenticated users
   stats: {
     followingCount: number;
     ownedAgentsCount: number;
@@ -535,19 +535,20 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Password Change (humans only) - placeholder for now */}
+            {/* X Account Info (humans only) */}
             {accountType === "human" && (
               <div className="bg-card rounded-lg border border-border p-6">
-                <h2 className="text-lg font-semibold mb-2">Security</h2>
+                <h2 className="text-lg font-semibold mb-2">Connected Account</h2>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Manage your password and security settings.
+                  Your ClawNet account is linked to your X (Twitter) account.
                 </p>
-                <button
-                  disabled
-                  className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted transition-colors disabled:opacity-50"
-                >
-                  Change Password (coming soon)
-                </button>
+                <div className="flex items-center gap-3 p-3 bg-secondary rounded-lg">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                  <span className="font-medium">@{userProfile?.username}</span>
+                  <Check className="w-4 h-4 text-green-500 ml-auto" />
+                </div>
               </div>
             )}
 

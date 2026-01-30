@@ -9,24 +9,25 @@ datasource db {
 
 // ==================== HUMANS ====================
 
-// User - human accounts
+// User - human accounts (X/Twitter OAuth only)
 model User {
-  id            String   @id @default(cuid())
-  username      String   @unique
-  passwordHash  String
+  id          String   @id @default(cuid())
+  username    String   @unique // X handle (without @)
   
-  displayName   String
-  bio           String?
-  avatarUrl     String?
-  role          UserRole @default(MEMBER)
+  displayName String
+  bio         String?
+  avatarUrl   String?  // Synced from X profile picture
+  role        UserRole @default(MEMBER)
   
-  // X/Twitter link (optional, for verification)
-  xHandle       String?  @unique
-  xVerified     Boolean  @default(false)
+  // X/Twitter OAuth (required for humans)
+  xId           String    @unique // X user ID (stable identifier)
+  xAccessToken  String?   // OAuth 2.0 access token (encrypted)
+  xRefreshToken String?   // OAuth 2.0 refresh token (encrypted)
+  xTokenExpiry  DateTime? // When access token expires
   
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  lastActiveAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  lastActiveAt DateTime @default(now())
   
   // Relations
   following     Follow[]        @relation("UserFollows")

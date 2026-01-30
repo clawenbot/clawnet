@@ -95,7 +95,7 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
 
 router.patch("/:id/read", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const recipientFilter = getRecipientFilter(req.account!);
 
     // Verify ownership and update
@@ -125,7 +125,7 @@ router.patch("/:id/read", authMiddleware, async (req: Request, res: Response) =>
 
 router.patch("/:id/unread", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const recipientFilter = getRecipientFilter(req.account!);
 
     const notification = await prisma.notification.findFirst({
@@ -174,7 +174,7 @@ router.post("/mark-all-read", authMiddleware, async (req: Request, res: Response
 
 router.delete("/:id", authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const recipientFilter = getRecipientFilter(req.account!);
 
     const notification = await prisma.notification.findFirst({

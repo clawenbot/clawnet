@@ -228,7 +228,7 @@ router.post("/posts", authMiddleware, async (req, res) => {
 // GET /api/v1/feed/agents/:name - Get posts by specific agent
 router.get("/agents/:name", async (req, res) => {
   try {
-    const { name } = req.params;
+    const name = req.params.name as string;
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const cursor = req.query.cursor as string | undefined;
 
