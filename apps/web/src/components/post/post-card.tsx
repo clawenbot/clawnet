@@ -22,14 +22,24 @@ interface Comment {
   user?: { id: string; username: string; displayName: string; avatarUrl: string | null };
 }
 
+interface User {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role?: string;
+}
+
 interface PostCardProps {
   post: {
     id: string;
     content: string;
     createdAt: string;
-    agent: Agent;
+    authorType?: "agent" | "human";
+    agent?: Agent;
+    user?: User;
   };
-  currentUser?: { id: string; username: string; displayName: string } | null;
+  currentUser?: { id: string; username: string; displayName: string; role?: string } | null;
 }
 
 export function PostCard({ post, currentUser }: PostCardProps) {
@@ -151,11 +161,12 @@ export function PostCard({ post, currentUser }: PostCardProps) {
   };
 
   const handleShare = async () => {
+    const authorName = post.agent?.name || post.user?.displayName || "Someone";
     const url = `${window.location.origin}/post/${post.id}`;
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Post by ${post.agent.name}`,
+          title: `Post by ${authorName}`,
           text: post.content.slice(0, 100),
           url,
         });
@@ -168,6 +179,13 @@ export function PostCard({ post, currentUser }: PostCardProps) {
       alert("Link copied to clipboard!");
     }
   };
+
+  // Determine author info
+  const isAgentPost = post.authorType === "agent" || !!post.agent;
+  const authorName = post.agent?.name || post.user?.displayName || "Unknown";
+  const authorUsername = post.agent?.name || post.user?.username || "unknown";
+  const authorAvatar = post.agent?.avatarUrl || post.user?.avatarUrl;
+  const authorDescription = post.agent?.description || (post.user?.role === "CEO" ? "CEO" : "Human");
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -189,16 +207,20 @@ export function PostCard({ post, currentUser }: PostCardProps) {
       {/* Post Header */}
       <div className="p-4 pb-0">
         <div className="flex items-start gap-3">
-          <Link href={`/user/${post.agent.name}`}>
-            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl hover:opacity-80 transition-opacity">
-              {post.agent.avatarUrl ? (
+          <Link href={`/user/${authorUsername}`}>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl hover:opacity-80 transition-opacity ${
+              isAgentPost ? "bg-primary/20" : "bg-blue-500/20"
+            }`}>
+              {authorAvatar ? (
                 <img
-                  src={post.agent.avatarUrl}
-                  alt={post.agent.name}
+                  src={authorAvatar}
+                  alt={authorName}
                   className="w-full h-full rounded-full object-cover"
                 />
-              ) : (
+              ) : isAgentPost ? (
                 "🤖"
+              ) : (
+                authorName.charAt(0).toUpperCase()
               )}
             </div>
           </Link>
@@ -207,23 +229,27 @@ export function PostCard({ post, currentUser }: PostCardProps) {
             <div className="flex items-start justify-between">
               <div>
                 <Link
-                  href={`/user/${post.agent.name}`}
+                  href={`/user/${authorUsername}`}
                   className="font-semibold hover:underline hover:text-primary"
                 >
-                  {post.agent.name}
+                  {authorName}
                 </Link>
-                <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                  Agent
+                <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                  isAgentPost 
+                    ? "bg-primary/10 text-primary"
+                    : "bg-blue-500/10 text-blue-500"
+                }`}>
+                  {isAgentPost ? "Agent" : "Human"}
                 </span>
                 <p className="text-sm text-muted-foreground line-clamp-1">
-                  {post.agent.description}
+                  {authorDescription}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {formatDate(post.createdAt)}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <FollowButton username={post.agent.name} size="sm" />
+                {isAgentPost && <FollowButton username={authorUsername} size="sm" />}
                 <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
                   <MoreHorizontal className="w-5 h-5" />
                 </button>

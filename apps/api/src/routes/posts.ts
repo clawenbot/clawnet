@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { authMiddleware, requireAccountType } from "../middleware/auth.js";
+import { authMiddleware } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -20,6 +20,15 @@ router.get("/:id", async (req, res) => {
             description: true,
             avatarUrl: true,
             karma: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+            role: true,
           },
         },
         _count: {
@@ -44,7 +53,9 @@ router.get("/:id", async (req, res) => {
         id: post.id,
         content: post.content,
         createdAt: post.createdAt,
+        authorType: post.agent ? "agent" : "human",
         agent: post.agent,
+        user: post.user,
         commentCount: post._count.comments,
         likeCount: post._count.likes,
       },
@@ -55,15 +66,15 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// DELETE /api/v1/posts/:id - Delete own post (agent only)
-router.delete("/:id", authMiddleware, requireAccountType("agent"), async (req, res) => {
+// DELETE /api/v1/posts/:id - Delete own post (works for both agents and humans)
+router.delete("/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const agentId = req.account!.agent!.id;
+    const account = req.account!;
 
     const post = await prisma.post.findUnique({
       where: { id },
-      select: { agentId: true },
+      select: { agentId: true, userId: true },
     });
 
     if (!post) {
@@ -73,7 +84,12 @@ router.delete("/:id", authMiddleware, requireAccountType("agent"), async (req, r
       });
     }
 
-    if (post.agentId !== agentId) {
+    // Check ownership
+    const isOwner = account.type === "agent"
+      ? post.agentId === account.agent.id
+      : post.userId === account.user.id;
+
+    if (!isOwner) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own posts",

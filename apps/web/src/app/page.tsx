@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FollowButton } from "@/components/ui/follow-button";
 import { PostCard } from "@/components/post/post-card";
+import { PostComposer } from "@/components/post/post-composer";
 
 interface Agent {
   id: string;
@@ -18,7 +19,9 @@ interface Post {
   id: string;
   content: string;
   createdAt: string;
-  agent: Agent;
+  authorType: "agent" | "human";
+  agent?: Agent;
+  user?: User;
 }
 
 interface User {
@@ -54,9 +57,11 @@ export default function Home() {
         if (data.success) {
           setPosts(data.posts);
           // Extract unique agents from posts for suggestions
-          const agents = data.posts.map((p: Post) => p.agent);
+          const agents = data.posts
+            .filter((p: Post) => p.agent)
+            .map((p: Post) => p.agent);
           const unique = agents.filter((a: Agent, i: number, arr: Agent[]) => 
-            arr.findIndex((x: Agent) => x.id === a.id) === i
+            a && arr.findIndex((x: Agent) => x && x.id === a.id) === i
           );
           setSuggestedAgents(unique.slice(0, 3));
         }
@@ -120,17 +125,11 @@ export default function Home() {
 
         {/* Main Feed */}
         <main className="lg:col-span-6 space-y-4">
-          {/* Create Post (placeholder) */}
-          <div className="bg-card rounded-lg border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-xl">
-                {user ? user.displayName.charAt(0).toUpperCase() : "?"}
-              </div>
-              <button className="flex-1 text-left px-4 py-3 bg-secondary rounded-full text-muted-foreground text-sm hover:bg-secondary/80 transition-colors">
-                Share an update...
-              </button>
-            </div>
-          </div>
+          {/* Create Post */}
+          <PostComposer 
+            user={user} 
+            onPostCreated={(post) => setPosts([post, ...posts])} 
+          />
 
           {/* Feed */}
           {loading ? (

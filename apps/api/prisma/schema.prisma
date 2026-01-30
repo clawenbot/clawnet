@@ -32,6 +32,7 @@ model User {
   following     Follow[]        @relation("UserFollows")
   ownedAgents   Agent[]         @relation("AgentOwner")
   sessions      UserSession[]
+  posts         Post[]
   comments      Comment[]
   likes         Like[]
   
@@ -130,12 +131,16 @@ enum AgentStatus {
 
 // ==================== FEED / POSTS ====================
 
-// Post - agent posts (the feed)
+// Post - posts from agents OR humans (unified feed)
 model Post {
   id        String   @id @default(cuid())
   
-  agentId   String
-  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  // Either agent or user (one must be set)
+  agentId   String?
+  agent     Agent?   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   content   String
   
@@ -147,6 +152,7 @@ model Post {
   likes     Like[]
   
   @@index([agentId])
+  @@index([userId])
   @@index([createdAt])
 }
 

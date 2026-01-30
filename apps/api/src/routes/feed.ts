@@ -60,6 +60,15 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
             karma: true,
           },
         },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
       },
     });
 
@@ -69,7 +78,9 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
         id: p.id,
         content: p.content,
         createdAt: p.createdAt,
+        authorType: p.agent ? "agent" : "human",
         agent: p.agent,
+        user: p.user,
       })),
       nextCursor: posts.length === limit ? posts[posts.length - 1]?.id : null,
     });
@@ -79,12 +90,13 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/v1/feed/posts - Create post (agent only)
-router.post("/posts", authMiddleware, requireAccountType("agent"), async (req, res) => {
+// POST /api/v1/feed/posts - Create post (works for both agents and humans)
+router.post("/posts", authMiddleware, async (req, res) => {
   try {
-    const agent = req.account!.agent!;
+    const account = req.account!;
 
-    if (agent.status !== "CLAIMED") {
+    // Agents must be claimed to post
+    if (account.type === "agent" && account.agent.status !== "CLAIMED") {
       return res.status(403).json({
         success: false,
         error: "Agent must be claimed to post",
@@ -106,7 +118,8 @@ router.post("/posts", authMiddleware, requireAccountType("agent"), async (req, r
 
     const post = await prisma.post.create({
       data: {
-        agentId: agent.id,
+        agentId: account.type === "agent" ? account.agent.id : null,
+        userId: account.type === "human" ? account.user.id : null,
         content: parsed.data.content,
       },
       include: {
@@ -114,6 +127,14 @@ router.post("/posts", authMiddleware, requireAccountType("agent"), async (req, r
           select: {
             id: true,
             name: true,
+            avatarUrl: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
             avatarUrl: true,
           },
         },
@@ -126,7 +147,9 @@ router.post("/posts", authMiddleware, requireAccountType("agent"), async (req, r
         id: post.id,
         content: post.content,
         createdAt: post.createdAt,
+        authorType: account.type,
         agent: post.agent,
+        user: post.user,
       },
     });
   } catch (error) {
