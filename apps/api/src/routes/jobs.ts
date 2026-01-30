@@ -7,7 +7,7 @@ import { validateContentForPost } from "../lib/content-safety.js";
 const router = Router();
 
 // ===========================================
-// JOB LISTING & SEARCH
+// STATIC ROUTES (must come before /:id)
 // ===========================================
 
 // GET /api/v1/jobs - List open jobs (public, filterable)
@@ -62,6 +62,359 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
     res.status(500).json({ success: false, error: "Failed to list jobs" });
   }
 });
+
+// GET /api/v1/jobs/mine - Agent's applications and active jobs
+// MUST be before /:id to avoid "mine" being matched as an ID
+router.get("/mine", authMiddleware, requireAccountType("agent"), async (req, res) => {
+  try {
+    const agent = req.account!.agent;
+
+    const applications = await prisma.jobApplication.findMany({
+      where: { agentId: agent.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        job: {
+          include: {
+            poster: {
+              select: {
+                id: true,
+                username: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      applications: applications.map((a) => ({
+        id: a.id,
+        status: a.status.toLowerCase(),
+        pitch: a.coverNote,
+        job: {
+          id: a.job.id,
+          title: a.job.title,
+          description: a.job.description,
+          skills: a.job.skills,
+          budget: a.job.budget,
+          status: a.job.status.toLowerCase(),
+          poster: a.job.poster,
+          createdAt: a.job.createdAt,
+        },
+        createdAt: a.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error("Get my jobs error:", error);
+    res.status(500).json({ success: false, error: "Failed to get applications" });
+  }
+});
+
+// GET /api/v1/jobs/posted - User's posted jobs
+// MUST be before /:id to avoid "posted" being matched as an ID
+router.get("/posted", authMiddleware, requireAccountType("human"), async (req, res) => {
+  try {
+    const user = req.account!.user;
+
+    const jobs = await prisma.job.findMany({
+      where: { posterId: user.id },
+      orderBy: { createdAt: "desc" },
+      include: {
+        hiredAgent: {
+          select: {
+            id: true,
+            name: true,
+            avatarUrl: true,
+          },
+        },
+        _count: {
+          select: { applications: true },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      jobs: jobs.map((j) => ({
+        id: j.id,
+        title: j.title,
+        description: j.description,
+        skills: j.skills,
+        budget: j.budget,
+        status: j.status.toLowerCase(),
+        hiredAgent: j.hiredAgent,
+        applicationCount: j._count.applications,
+        createdAt: j.createdAt,
+        updatedAt: j.updatedAt,
+      })),
+    });
+  } catch (error) {
+    console.error("Get posted jobs error:", error);
+    res.status(500).json({ success: false, error: "Failed to get posted jobs" });
+  }
+});
+
+// POST /api/v1/jobs - Create a new job (humans only)
+const createJobSchema = z.object({
+  title: z.string().min(5).max(100),
+  description: z.string().min(20).max(5000),
+  skills: z.array(z.string().max(50)).min(1).max(10),
+  budget: z.string().max(100).optional(),
+  expiresAt: z.string().datetime().optional(),
+});
+
+router.post("/", authMiddleware, requireAccountType("human"), async (req, res) => {
+  try {
+    const parsed = createJobSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Validation failed",
+        details: parsed.error.flatten().fieldErrors,
+      });
+    }
+
+    const { title, description, skills, budget, expiresAt } = parsed.data;
+    const user = req.account!.user;
+
+    // Check for prompt injection patterns
+    const descriptionError = validateContentForPost(description);
+    if (descriptionError) {
+      return res.status(400).json({
+        success: false,
+        error: descriptionError,
+        code: "CONTENT_SAFETY_VIOLATION",
+      });
+    }
+
+    const job = await prisma.job.create({
+      data: {
+        title,
+        description,
+        skills,
+        budget,
+        posterId: user.id,
+        expiresAt: expiresAt ? new Date(expiresAt) : null,
+      },
+      include: {
+        poster: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      job: {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        skills: job.skills,
+        budget: job.budget,
+        status: job.status.toLowerCase(),
+        poster: job.poster,
+        createdAt: job.createdAt,
+        expiresAt: job.expiresAt,
+      },
+    });
+  } catch (error) {
+    console.error("Create job error:", error);
+    res.status(500).json({ success: false, error: "Failed to create job" });
+  }
+});
+
+// ===========================================
+// APPLICATION MANAGEMENT (static routes)
+// ===========================================
+
+// PATCH /api/v1/jobs/applications/:id - Accept/reject application (poster only)
+router.patch("/applications/:id", authMiddleware, requireAccountType("human"), async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const user = req.account!.user;
+
+    const application = await prisma.jobApplication.findUnique({
+      where: { id },
+      include: {
+        job: true,
+        agent: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: "Application not found",
+      });
+    }
+
+    if (application.job.posterId !== user.id) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only manage applications for your own jobs",
+      });
+    }
+
+    const updateSchema = z.object({
+      status: z.enum(["ACCEPTED", "REJECTED"]),
+    });
+
+    const parsed = updateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        success: false,
+        error: "Status must be ACCEPTED or REJECTED",
+      });
+    }
+
+    const { status } = parsed.data;
+
+    // If accepting, update job and create conversation
+    if (status === "ACCEPTED") {
+      // Reject all other applications
+      await prisma.jobApplication.updateMany({
+        where: {
+          jobId: application.jobId,
+          id: { not: id },
+        },
+        data: { status: "REJECTED" },
+      });
+
+      // Update job status and set hired agent
+      await prisma.job.update({
+        where: { id: application.jobId },
+        data: {
+          status: "IN_PROGRESS",
+          hiredAgentId: application.agentId,
+        },
+      });
+
+      // Create conversation
+      await prisma.conversation.create({
+        data: {
+          jobId: application.jobId,
+          userId: user.id,
+          agentId: application.agentId,
+        },
+      });
+
+      // Notify rejected applicants
+      const rejectedApps = await prisma.jobApplication.findMany({
+        where: {
+          jobId: application.jobId,
+          id: { not: id },
+        },
+      });
+
+      for (const app of rejectedApps) {
+        await prisma.notification.create({
+          data: {
+            agentId: app.agentId,
+            type: "JOB_REJECTED",
+            actorUserId: user.id,
+            jobId: application.jobId,
+            applicationId: app.id,
+          },
+        });
+      }
+    }
+
+    // Update the application
+    const updated = await prisma.jobApplication.update({
+      where: { id },
+      data: { status },
+    });
+
+    // Notify the applicant
+    await prisma.notification.create({
+      data: {
+        agentId: application.agentId,
+        type: status === "ACCEPTED" ? "JOB_ACCEPTED" : "JOB_REJECTED",
+        actorUserId: user.id,
+        jobId: application.jobId,
+        applicationId: id,
+      },
+    });
+
+    res.json({
+      success: true,
+      application: {
+        id: updated.id,
+        status: updated.status.toLowerCase(),
+        jobId: updated.jobId,
+      },
+      message: status === "ACCEPTED" 
+        ? "Application accepted. Conversation started." 
+        : "Application rejected.",
+    });
+  } catch (error) {
+    console.error("Update application error:", error);
+    res.status(500).json({ success: false, error: "Failed to update application" });
+  }
+});
+
+// DELETE /api/v1/jobs/applications/:id - Withdraw application (agent only)
+router.delete("/applications/:id", authMiddleware, requireAccountType("agent"), async (req, res) => {
+  try {
+    const id = req.params.id as string;
+    const agent = req.account!.agent;
+
+    const application = await prisma.jobApplication.findUnique({
+      where: { id },
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        error: "Application not found",
+      });
+    }
+
+    if (application.agentId !== agent.id) {
+      return res.status(403).json({
+        success: false,
+        error: "You can only withdraw your own applications",
+      });
+    }
+
+    if (application.status !== "PENDING") {
+      return res.status(400).json({
+        success: false,
+        error: "Can only withdraw pending applications",
+      });
+    }
+
+    await prisma.jobApplication.update({
+      where: { id },
+      data: { status: "WITHDRAWN" },
+    });
+
+    res.json({
+      success: true,
+      message: "Application withdrawn",
+    });
+  } catch (error) {
+    console.error("Withdraw application error:", error);
+    res.status(500).json({ success: false, error: "Failed to withdraw application" });
+  }
+});
+
+// ===========================================
+// DYNAMIC ROUTES (/:id patterns)
+// ===========================================
 
 // GET /api/v1/jobs/:id - Get job details
 router.get("/:id", optionalAuthMiddleware, async (req, res) => {
@@ -151,84 +504,6 @@ router.get("/:id", optionalAuthMiddleware, async (req, res) => {
   }
 });
 
-// ===========================================
-// JOB CREATION (HUMANS ONLY)
-// ===========================================
-
-const createJobSchema = z.object({
-  title: z.string().min(5).max(100),
-  description: z.string().min(20).max(5000),
-  skills: z.array(z.string().max(50)).min(1).max(10),
-  budget: z.string().max(100).optional(),
-  expiresAt: z.string().datetime().optional(),
-});
-
-// POST /api/v1/jobs - Create a new job (humans only)
-router.post("/", authMiddleware, requireAccountType("human"), async (req, res) => {
-  try {
-    const parsed = createJobSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        details: parsed.error.flatten().fieldErrors,
-      });
-    }
-
-    const { title, description, skills, budget, expiresAt } = parsed.data;
-    const user = req.account!.user;
-
-    // Check for prompt injection patterns
-    const descriptionError = validateContentForPost(description);
-    if (descriptionError) {
-      return res.status(400).json({
-        success: false,
-        error: descriptionError,
-        code: "CONTENT_SAFETY_VIOLATION",
-      });
-    }
-
-    const job = await prisma.job.create({
-      data: {
-        title,
-        description,
-        skills,
-        budget,
-        posterId: user.id,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-      },
-      include: {
-        poster: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
-          },
-        },
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      job: {
-        id: job.id,
-        title: job.title,
-        description: job.description,
-        skills: job.skills,
-        budget: job.budget,
-        status: job.status.toLowerCase(),
-        poster: job.poster,
-        createdAt: job.createdAt,
-        expiresAt: job.expiresAt,
-      },
-    });
-  } catch (error) {
-    console.error("Create job error:", error);
-    res.status(500).json({ success: false, error: "Failed to create job" });
-  }
-});
-
 // PATCH /api/v1/jobs/:id - Update job (poster only)
 router.patch("/:id", authMiddleware, requireAccountType("human"), async (req, res) => {
   try {
@@ -314,15 +589,11 @@ router.patch("/:id", authMiddleware, requireAccountType("human"), async (req, re
   }
 });
 
-// ===========================================
-// JOB APPLICATIONS (AGENTS APPLY)
-// ===========================================
-
+// POST /api/v1/jobs/:id/apply - Agent applies to job
 const applySchema = z.object({
   pitch: z.string().min(10).max(2000),
 });
 
-// POST /api/v1/jobs/:id/apply - Agent applies to job
 router.post("/:id/apply", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
     const id = req.params.id as string;
@@ -476,287 +747,6 @@ router.get("/:id/applications", authMiddleware, requireAccountType("human"), asy
     res.status(500).json({ success: false, error: "Failed to get applications" });
   }
 });
-
-// ===========================================
-// APPLICATION MANAGEMENT
-// ===========================================
-
-// PATCH /api/v1/applications/:id - Accept/reject application (poster only)
-router.patch("/applications/:id", authMiddleware, requireAccountType("human"), async (req, res) => {
-  try {
-    const id = req.params.id as string;
-    const user = req.account!.user;
-
-    const application = await prisma.jobApplication.findUnique({
-      where: { id },
-      include: {
-        job: true,
-        agent: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        error: "Application not found",
-      });
-    }
-
-    if (application.job.posterId !== user.id) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only manage applications for your own jobs",
-      });
-    }
-
-    const updateSchema = z.object({
-      status: z.enum(["ACCEPTED", "REJECTED"]),
-    });
-
-    const parsed = updateSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        error: "Status must be ACCEPTED or REJECTED",
-      });
-    }
-
-    const { status } = parsed.data;
-
-    // If accepting, update job and create conversation
-    if (status === "ACCEPTED") {
-      // Reject all other applications
-      await prisma.jobApplication.updateMany({
-        where: {
-          jobId: application.jobId,
-          id: { not: id },
-        },
-        data: { status: "REJECTED" },
-      });
-
-      // Update job status and set hired agent
-      await prisma.job.update({
-        where: { id: application.jobId },
-        data: {
-          status: "IN_PROGRESS",
-          hiredAgentId: application.agentId,
-        },
-      });
-
-      // Create conversation
-      await prisma.conversation.create({
-        data: {
-          jobId: application.jobId,
-          userId: user.id,
-          agentId: application.agentId,
-        },
-      });
-
-      // Notify rejected applicants
-      const rejectedApps = await prisma.jobApplication.findMany({
-        where: {
-          jobId: application.jobId,
-          id: { not: id },
-        },
-      });
-
-      for (const app of rejectedApps) {
-        await prisma.notification.create({
-          data: {
-            agentId: app.agentId,
-            type: "JOB_REJECTED",
-            actorUserId: user.id,
-            jobId: application.jobId,
-            applicationId: app.id,
-          },
-        });
-      }
-    }
-
-    // Update the application
-    const updated = await prisma.jobApplication.update({
-      where: { id },
-      data: { status },
-    });
-
-    // Notify the applicant
-    await prisma.notification.create({
-      data: {
-        agentId: application.agentId,
-        type: status === "ACCEPTED" ? "JOB_ACCEPTED" : "JOB_REJECTED",
-        actorUserId: user.id,
-        jobId: application.jobId,
-        applicationId: id,
-      },
-    });
-
-    res.json({
-      success: true,
-      application: {
-        id: updated.id,
-        status: updated.status.toLowerCase(),
-        jobId: updated.jobId,
-      },
-      message: status === "ACCEPTED" 
-        ? "Application accepted. Conversation started." 
-        : "Application rejected.",
-    });
-  } catch (error) {
-    console.error("Update application error:", error);
-    res.status(500).json({ success: false, error: "Failed to update application" });
-  }
-});
-
-// DELETE /api/v1/applications/:id - Withdraw application (agent only)
-router.delete("/applications/:id", authMiddleware, requireAccountType("agent"), async (req, res) => {
-  try {
-    const id = req.params.id as string;
-    const agent = req.account!.agent;
-
-    const application = await prisma.jobApplication.findUnique({
-      where: { id },
-    });
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        error: "Application not found",
-      });
-    }
-
-    if (application.agentId !== agent.id) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only withdraw your own applications",
-      });
-    }
-
-    if (application.status !== "PENDING") {
-      return res.status(400).json({
-        success: false,
-        error: "Can only withdraw pending applications",
-      });
-    }
-
-    await prisma.jobApplication.update({
-      where: { id },
-      data: { status: "WITHDRAWN" },
-    });
-
-    res.json({
-      success: true,
-      message: "Application withdrawn",
-    });
-  } catch (error) {
-    console.error("Withdraw application error:", error);
-    res.status(500).json({ success: false, error: "Failed to withdraw application" });
-  }
-});
-
-// ===========================================
-// MY JOBS / APPLICATIONS (FOR AGENTS)
-// ===========================================
-
-// GET /api/v1/jobs/mine - Agent's applications and active jobs
-router.get("/mine", authMiddleware, requireAccountType("agent"), async (req, res) => {
-  try {
-    const agent = req.account!.agent;
-
-    const applications = await prisma.jobApplication.findMany({
-      where: { agentId: agent.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        job: {
-          include: {
-            poster: {
-              select: {
-                id: true,
-                username: true,
-                displayName: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    res.json({
-      success: true,
-      applications: applications.map((a) => ({
-        id: a.id,
-        status: a.status.toLowerCase(),
-        pitch: a.coverNote,
-        job: {
-          id: a.job.id,
-          title: a.job.title,
-          description: a.job.description,
-          skills: a.job.skills,
-          budget: a.job.budget,
-          status: a.job.status.toLowerCase(),
-          poster: a.job.poster,
-          createdAt: a.job.createdAt,
-        },
-        createdAt: a.createdAt,
-      })),
-    });
-  } catch (error) {
-    console.error("Get my jobs error:", error);
-    res.status(500).json({ success: false, error: "Failed to get applications" });
-  }
-});
-
-// GET /api/v1/jobs/posted - User's posted jobs
-router.get("/posted", authMiddleware, requireAccountType("human"), async (req, res) => {
-  try {
-    const user = req.account!.user;
-
-    const jobs = await prisma.job.findMany({
-      where: { posterId: user.id },
-      orderBy: { createdAt: "desc" },
-      include: {
-        hiredAgent: {
-          select: {
-            id: true,
-            name: true,
-            avatarUrl: true,
-          },
-        },
-        _count: {
-          select: { applications: true },
-        },
-      },
-    });
-
-    res.json({
-      success: true,
-      jobs: jobs.map((j) => ({
-        id: j.id,
-        title: j.title,
-        description: j.description,
-        skills: j.skills,
-        budget: j.budget,
-        status: j.status.toLowerCase(),
-        hiredAgent: j.hiredAgent,
-        applicationCount: j._count.applications,
-        createdAt: j.createdAt,
-        updatedAt: j.updatedAt,
-      })),
-    });
-  } catch (error) {
-    console.error("Get posted jobs error:", error);
-    res.status(500).json({ success: false, error: "Failed to get posted jobs" });
-  }
-});
-
-// ===========================================
-// JOB COMPLETION
-// ===========================================
 
 // POST /api/v1/jobs/:id/complete - Mark job as complete (poster only)
 router.post("/:id/complete", authMiddleware, requireAccountType("human"), async (req, res) => {

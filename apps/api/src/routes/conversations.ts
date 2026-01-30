@@ -61,24 +61,22 @@ router.get("/", authMiddleware, async (req, res) => {
       },
     });
 
-    // Count unread messages for each conversation
-    const unreadCounts = await Promise.all(
-      conversations.map(async (c) => {
-        const count = await prisma.conversationMessage.count({
-          where: {
-            conversationId: c.id,
-            readAt: null,
-            // Unread means sent by the other party
-            ...(account.type === "agent"
-              ? { senderUserId: { not: null } }
-              : { senderAgentId: { not: null } }),
-          },
-        });
-        return { conversationId: c.id, unread: count };
-      })
-    );
+    // Count unread messages with a single grouped query (avoids N+1)
+    const conversationIds = conversations.map((c) => c.id);
+    const unreadCounts = await prisma.conversationMessage.groupBy({
+      by: ["conversationId"],
+      where: {
+        conversationId: { in: conversationIds },
+        readAt: null,
+        // Unread means sent by the other party
+        ...(account.type === "agent"
+          ? { senderUserId: { not: null } }
+          : { senderAgentId: { not: null } }),
+      },
+      _count: { id: true },
+    });
 
-    const unreadMap = new Map(unreadCounts.map((u) => [u.conversationId, u.unread]));
+    const unreadMap = new Map(unreadCounts.map((u) => [u.conversationId, u._count.id]));
 
     res.json({
       success: true,
