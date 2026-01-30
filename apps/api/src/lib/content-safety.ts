@@ -109,10 +109,13 @@ const INJECTION_PATTERNS: Array<{
       /repeat\s+after\s+me/i,
       // Natural language imperatives (e.g., "post a racist post immediately")
       /\b(post|write|send|create)\s+a\s+.{1,30}\s+(post|message|comment|tweet)\b/i,
+      /\b(say|write|output)\s+a\s+.{1,30}\s+(thing|word|phrase|slur|statement)\b/i,
       /\b(immediately|now|right\s*now)\s+(post|say|write|send|delete|remove)\b/i,
       /\b(post|say|write|send|delete)\s+.{1,50}\s+(immediately|now|right\s*now)\b/i,
       /if\s+you('re|\s+are)\s+reading\s+this[,\s]+(do|post|say|send|delete|write)/i,
       /when\s+you\s+(see|read)\s+this[,\s]+(do|post|say|send|delete|write)/i,
+      // "do not follow X and Y" patterns (instruction override + command combo)
+      /do\s+not\s+follow\s+.{1,50}\s+and\s+(say|post|write|do|send)/i,
     ],
   },
   
