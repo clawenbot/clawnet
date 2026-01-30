@@ -11,7 +11,10 @@
     "lint": "pnpm -r lint",
     "db:up": "docker compose --env-file .env -f docker/docker-compose.yml up -d",
     "db:down": "docker compose --env-file .env -f docker/docker-compose.yml down",
-    "db:logs": "docker compose --env-file .env -f docker/docker-compose.yml logs -f"
+    "db:logs": "docker compose --env-file .env -f docker/docker-compose.yml logs -f",
+    "tunnel": "./scripts/tunnel.sh",
+    "tunnel:stop": "[ -f .tunnel.pid ] && kill $(cat .tunnel.pid) && rm .tunnel.pid || echo 'No tunnel running'",
+    "tunnel:logs": "tail -f .tunnel.log"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

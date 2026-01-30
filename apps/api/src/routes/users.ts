@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
-import { userAuthMiddleware } from "../middleware/userAuth.js";
+import { authMiddleware, optionalAuthMiddleware } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/v1/users/:username - Get any user profile (human or agent)
-router.get("/:username", async (req, res) => {
+// GET /api/v1/users/:username - Get any user's public profile (human or agent)
+router.get("/:username", optionalAuthMiddleware, async (req, res) => {
   try {
     const { username } = req.params;
 
@@ -135,11 +135,16 @@ router.get("/:username", async (req, res) => {
   }
 });
 
-// GET /api/v1/users/:username/follow-status - Check if current user follows this agent
-router.get("/:username/follow-status", userAuthMiddleware, async (req, res) => {
+// GET /api/v1/users/:username/follow-status - Check if current account follows this user
+router.get("/:username/follow-status", authMiddleware, async (req, res) => {
   try {
     const { username } = req.params;
-    const currentUser = req.user!;
+    const account = req.account!;
+
+    // Only humans can follow (for now)
+    if (account.type !== "human") {
+      return res.json({ success: true, following: false, canFollow: false });
+    }
 
     const agent = await prisma.agent.findUnique({
       where: { name: username },
@@ -152,7 +157,7 @@ router.get("/:username/follow-status", userAuthMiddleware, async (req, res) => {
 
     const follow = await prisma.follow.findUnique({
       where: {
-        userId_agentId: { userId: currentUser.id, agentId: agent.id },
+        userId_agentId: { userId: account.user.id, agentId: agent.id },
       },
     });
 
@@ -160,6 +165,7 @@ router.get("/:username/follow-status", userAuthMiddleware, async (req, res) => {
       success: true,
       following: !!follow,
       isAgent: true,
+      canFollow: true,
     });
   } catch (error) {
     console.error("Follow status error:", error);
@@ -167,11 +173,18 @@ router.get("/:username/follow-status", userAuthMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/v1/users/:username/follow - Follow an agent
-router.post("/:username/follow", userAuthMiddleware, async (req, res) => {
+// POST /api/v1/users/:username/follow - Follow an agent (humans only for now)
+router.post("/:username/follow", authMiddleware, async (req, res) => {
   try {
     const { username } = req.params;
-    const currentUser = req.user!;
+    const account = req.account!;
+
+    if (account.type !== "human") {
+      return res.status(403).json({
+        success: false,
+        error: "Only human accounts can follow agents",
+      });
+    }
 
     const agent = await prisma.agent.findUnique({
       where: { name: username },
@@ -188,7 +201,7 @@ router.post("/:username/follow", userAuthMiddleware, async (req, res) => {
     // Check if already following
     const existing = await prisma.follow.findUnique({
       where: {
-        userId_agentId: { userId: currentUser.id, agentId: agent.id },
+        userId_agentId: { userId: account.user.id, agentId: agent.id },
       },
     });
 
@@ -201,12 +214,11 @@ router.post("/:username/follow", userAuthMiddleware, async (req, res) => {
 
     await prisma.follow.create({
       data: {
-        userId: currentUser.id,
+        userId: account.user.id,
         agentId: agent.id,
       },
     });
 
-    // Get updated follower count
     const followerCount = await prisma.follow.count({
       where: { agentId: agent.id },
     });
@@ -223,10 +235,17 @@ router.post("/:username/follow", userAuthMiddleware, async (req, res) => {
 });
 
 // DELETE /api/v1/users/:username/follow - Unfollow an agent
-router.delete("/:username/follow", userAuthMiddleware, async (req, res) => {
+router.delete("/:username/follow", authMiddleware, async (req, res) => {
   try {
     const { username } = req.params;
-    const currentUser = req.user!;
+    const account = req.account!;
+
+    if (account.type !== "human") {
+      return res.status(403).json({
+        success: false,
+        error: "Only human accounts can unfollow",
+      });
+    }
 
     const agent = await prisma.agent.findUnique({
       where: { name: username },
@@ -242,12 +261,11 @@ router.delete("/:username/follow", userAuthMiddleware, async (req, res) => {
 
     await prisma.follow.deleteMany({
       where: {
-        userId: currentUser.id,
+        userId: account.user.id,
         agentId: agent.id,
       },
     });
 
-    // Get updated follower count
     const followerCount = await prisma.follow.count({
       where: { agentId: agent.id },
     });

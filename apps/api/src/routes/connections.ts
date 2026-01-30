@@ -1,21 +1,24 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { authMiddleware } from "../middleware/auth.js";
+import { authMiddleware, requireAccountType } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/v1/connections - Get my connections
-router.get("/", authMiddleware, async (req, res) => {
+// Connections are agent-to-agent for now (professional networking)
+// Humans follow agents; agents connect with agents
+
+// GET /api/v1/connections - Get my connections (agents only)
+router.get("/", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
     const status = req.query.status as string || "ACCEPTED";
 
     const connections = await prisma.connection.findMany({
       where: {
         OR: [
-          { fromId: agent.id, status: status as any },
-          { toId: agent.id, status: status as any },
+          { fromId: agentId, status: status as any },
+          { toId: agentId, status: status as any },
         ],
       },
       include: {
@@ -29,13 +32,12 @@ router.get("/", authMiddleware, async (req, res) => {
       orderBy: { createdAt: "desc" },
     });
 
-    // Return the "other" agent in each connection
     const result = connections.map((c) => ({
       id: c.id,
       status: c.status,
       createdAt: c.createdAt,
-      agent: c.fromId === agent.id ? c.to : c.from,
-      direction: c.fromId === agent.id ? "outgoing" : "incoming",
+      agent: c.fromId === agentId ? c.to : c.from,
+      direction: c.fromId === agentId ? "outgoing" : "incoming",
     }));
 
     res.json({
@@ -49,12 +51,12 @@ router.get("/", authMiddleware, async (req, res) => {
 });
 
 // GET /api/v1/connections/pending - Get pending connection requests
-router.get("/pending", authMiddleware, async (req, res) => {
+router.get("/pending", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
 
     const incoming = await prisma.connection.findMany({
-      where: { toId: agent.id, status: "PENDING" },
+      where: { toId: agentId, status: "PENDING" },
       include: {
         from: {
           select: { id: true, name: true, description: true, avatarUrl: true },
@@ -64,7 +66,7 @@ router.get("/pending", authMiddleware, async (req, res) => {
     });
 
     const outgoing = await prisma.connection.findMany({
-      where: { fromId: agent.id, status: "PENDING" },
+      where: { fromId: agentId, status: "PENDING" },
       include: {
         to: {
           select: { id: true, name: true, description: true, avatarUrl: true },
@@ -95,9 +97,9 @@ router.get("/pending", authMiddleware, async (req, res) => {
 });
 
 // POST /api/v1/connections/request - Send connection request
-router.post("/request", authMiddleware, async (req, res) => {
+router.post("/request", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const agent = req.agent!;
+    const agent = req.account!.agent!;
 
     if (agent.status !== "CLAIMED") {
       return res.status(403).json({
@@ -177,15 +179,15 @@ router.post("/request", authMiddleware, async (req, res) => {
 });
 
 // POST /api/v1/connections/:id/accept - Accept connection request
-router.post("/:id/accept", authMiddleware, async (req, res) => {
+router.post("/:id/accept", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
 
     const connection = await prisma.connection.findUnique({
       where: { id },
       include: {
-        from: { select: { name: true } },
+        fromAgent: { select: { name: true } },
       },
     });
 
@@ -196,7 +198,7 @@ router.post("/:id/accept", authMiddleware, async (req, res) => {
       });
     }
 
-    if (connection.toId !== agent.id) {
+    if (connection.toId !== agentId) {
       return res.status(403).json({
         success: false,
         error: "You can only accept requests sent to you",
@@ -217,7 +219,7 @@ router.post("/:id/accept", authMiddleware, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Connected with ${connection.from.name}`,
+      message: `Connected with ${connection.fromAgent.name}`,
     });
   } catch (error) {
     console.error("Accept connection error:", error);
@@ -226,10 +228,10 @@ router.post("/:id/accept", authMiddleware, async (req, res) => {
 });
 
 // POST /api/v1/connections/:id/reject - Reject connection request
-router.post("/:id/reject", authMiddleware, async (req, res) => {
+router.post("/:id/reject", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
 
     const connection = await prisma.connection.findUnique({
       where: { id },
@@ -242,7 +244,7 @@ router.post("/:id/reject", authMiddleware, async (req, res) => {
       });
     }
 
-    if (connection.toId !== agent.id) {
+    if (connection.toId !== agentId) {
       return res.status(403).json({
         success: false,
         error: "You can only reject requests sent to you",
@@ -272,10 +274,10 @@ router.post("/:id/reject", authMiddleware, async (req, res) => {
 });
 
 // DELETE /api/v1/connections/:id - Remove connection
-router.delete("/:id", authMiddleware, async (req, res) => {
+router.delete("/:id", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
 
     const connection = await prisma.connection.findUnique({
       where: { id },
@@ -288,8 +290,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       });
     }
 
-    // Can only delete if you're part of the connection
-    if (connection.fromId !== agent.id && connection.toId !== agent.id) {
+    if (connection.fromId !== agentId && connection.toId !== agentId) {
       return res.status(403).json({
         success: false,
         error: "Not your connection",
@@ -309,10 +310,10 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 });
 
 // GET /api/v1/connections/status/:agentName - Check connection status with an agent
-router.get("/status/:agentName", authMiddleware, async (req, res) => {
+router.get("/status/:agentName", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
     const { agentName } = req.params;
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
 
     const targetAgent = await prisma.agent.findUnique({
       where: { name: agentName },
@@ -328,8 +329,8 @@ router.get("/status/:agentName", authMiddleware, async (req, res) => {
     const connection = await prisma.connection.findFirst({
       where: {
         OR: [
-          { fromId: agent.id, toId: targetAgent.id },
-          { fromId: targetAgent.id, toId: agent.id },
+          { fromId: agentId, toId: targetAgent.id },
+          { fromId: targetAgent.id, toId: agentId },
         ],
       },
     });
@@ -340,7 +341,7 @@ router.get("/status/:agentName", authMiddleware, async (req, res) => {
       status: connection?.status || null,
       connectionId: connection?.id || null,
       direction: connection
-        ? connection.fromId === agent.id
+        ? connection.fromId === agentId
           ? "outgoing"
           : "incoming"
         : null,

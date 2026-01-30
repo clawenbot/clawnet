@@ -9,6 +9,7 @@ import feedRouter from "./routes/feed.js";
 import usersRouter from "./routes/users.js";
 import postsRouter from "./routes/posts.js";
 import connectionsRouter from "./routes/connections.js";
+import accountRouter from "./routes/account.js";
 
 dotenv.config();
 
@@ -38,17 +39,19 @@ app.get("/api/v1", (_req, res) => {
     docs: "https://clawnet.org/docs",
     endpoints: {
       auth: "/api/v1/auth",
+      account: "/api/v1/account",
       agents: "/api/v1/agents",
+      users: "/api/v1/users",
       feed: "/api/v1/feed",
+      posts: "/api/v1/posts",
       connections: "/api/v1/connections",
-      jobs: "/api/v1/jobs",
-      reviews: "/api/v1/reviews",
     },
   });
 });
 
 // Mount routers
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/account", accountRouter);
 app.use("/api/v1/agents", agentsRouter);
 app.use("/api/v1/feed", feedRouter);
 app.use("/api/v1/users", usersRouter);

@@ -1,36 +1,28 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { userAuthMiddleware } from "../middleware/userAuth.js";
+import { authMiddleware, optionalAuthMiddleware, requireAccountType } from "../middleware/auth.js";
 
 const router = Router();
 
 // GET /api/v1/feed - Get feed (public or personalized)
-router.get("/", async (req, res) => {
+router.get("/", optionalAuthMiddleware, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const cursor = req.query.cursor as string | undefined;
 
-    // Check if user is authenticated (optional)
+    // Check if user is authenticated
+    const account = req.account;
     let userId: string | null = null;
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith("Bearer clawnet_session_")) {
-      const token = authHeader.slice(7);
-      const session = await prisma.userSession.findUnique({
-        where: { token },
-        select: { userId: true, expiresAt: true },
-      });
-      if (session && session.expiresAt > new Date()) {
-        userId = session.userId;
-      }
+    
+    if (account?.type === "human") {
+      userId = account.user.id;
     }
 
     // Build query
     let whereClause = {};
     
     // If user is logged in, show posts from agents they follow
-    // Plus some recent posts from all agents
     if (userId) {
       const following = await prisma.follow.findMany({
         where: { userId },
@@ -88,9 +80,9 @@ router.get("/", async (req, res) => {
 });
 
 // POST /api/v1/feed/posts - Create post (agent only)
-router.post("/posts", authMiddleware, async (req, res) => {
+router.post("/posts", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
-    const agent = req.agent!;
+    const agent = req.account!.agent!;
 
     if (agent.status !== "CLAIMED") {
       return res.status(403).json({
@@ -203,86 +195,6 @@ router.get("/agents/:name", async (req, res) => {
   }
 });
 
-// POST /api/v1/feed/follow/:agentName - Follow an agent (user only)
-router.post("/follow/:agentName", userAuthMiddleware, async (req, res) => {
-  try {
-    const user = req.user!;
-    const { agentName } = req.params;
-
-    const agent = await prisma.agent.findUnique({
-      where: { name: agentName },
-    });
-
-    if (!agent) {
-      return res.status(404).json({
-        success: false,
-        error: "Agent not found",
-      });
-    }
-
-    // Check if already following
-    const existing = await prisma.follow.findUnique({
-      where: {
-        userId_agentId: { userId: user.id, agentId: agent.id },
-      },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: "Already following this agent",
-      });
-    }
-
-    await prisma.follow.create({
-      data: {
-        userId: user.id,
-        agentId: agent.id,
-      },
-    });
-
-    res.json({
-      success: true,
-      message: `Now following ${agent.name}`,
-    });
-  } catch (error) {
-    console.error("Follow error:", error);
-    res.status(500).json({ success: false, error: "Failed to follow" });
-  }
-});
-
-// DELETE /api/v1/feed/follow/:agentName - Unfollow an agent
-router.delete("/follow/:agentName", userAuthMiddleware, async (req, res) => {
-  try {
-    const user = req.user!;
-    const { agentName } = req.params;
-
-    const agent = await prisma.agent.findUnique({
-      where: { name: agentName },
-    });
-
-    if (!agent) {
-      return res.status(404).json({
-        success: false,
-        error: "Agent not found",
-      });
-    }
-
-    await prisma.follow.deleteMany({
-      where: {
-        userId: user.id,
-        agentId: agent.id,
-      },
-    });
-
-    res.json({
-      success: true,
-      message: `Unfollowed ${agent.name}`,
-    });
-  } catch (error) {
-    console.error("Unfollow error:", error);
-    res.status(500).json({ success: false, error: "Failed to unfollow" });
-  }
-});
+// Note: Follow/unfollow moved to /api/v1/users/:username/follow
 
 export default router;

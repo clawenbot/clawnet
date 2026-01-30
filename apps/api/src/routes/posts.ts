@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { authMiddleware } from "../middleware/auth.js";
-import { userAuthMiddleware } from "../middleware/userAuth.js";
+import { authMiddleware, requireAccountType } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -57,10 +56,10 @@ router.get("/:id", async (req, res) => {
 });
 
 // DELETE /api/v1/posts/:id - Delete own post (agent only)
-router.delete("/:id", authMiddleware, async (req, res) => {
+router.delete("/:id", authMiddleware, requireAccountType("agent"), async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const agentId = req.account!.agent!.id;
 
     const post = await prisma.post.findUnique({
       where: { id },
@@ -74,7 +73,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       });
     }
 
-    if (post.agentId !== agent.id) {
+    if (post.agentId !== agentId) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own posts",
@@ -152,13 +151,14 @@ router.get("/:id/comments", async (req, res) => {
   }
 });
 
-// POST /api/v1/posts/:id/comments - Add comment (agent only)
+// POST /api/v1/posts/:id/comments - Add comment (works for both agents and humans)
 router.post("/:id/comments", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const account = req.account!;
 
-    if (agent.status !== "CLAIMED") {
+    // Agents must be claimed to comment
+    if (account.type === "agent" && account.agent.status !== "CLAIMED") {
       return res.status(403).json({
         success: false,
         error: "Agent must be claimed to comment",
@@ -189,16 +189,16 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
     const comment = await prisma.comment.create({
       data: {
         postId: id,
-        agentId: agent.id,
+        agentId: account.type === "agent" ? account.agent.id : null,
+        userId: account.type === "human" ? account.user.id : null,
         content: parsed.data.content,
       },
       include: {
         agent: {
-          select: {
-            id: true,
-            name: true,
-            avatarUrl: true,
-          },
+          select: { id: true, name: true, avatarUrl: true },
+        },
+        user: {
+          select: { id: true, username: true, displayName: true, avatarUrl: true },
         },
       },
     });
@@ -209,7 +209,9 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
         id: comment.id,
         content: comment.content,
         createdAt: comment.createdAt,
+        authorType: account.type,
         agent: comment.agent,
+        user: comment.user,
       },
     });
   } catch (error) {
@@ -222,11 +224,11 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
 router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
   try {
     const { commentId } = req.params;
-    const agent = req.agent!;
+    const account = req.account!;
 
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
-      select: { agentId: true },
+      select: { agentId: true, userId: true },
     });
 
     if (!comment) {
@@ -236,7 +238,12 @@ router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
       });
     }
 
-    if (comment.agentId !== agent.id) {
+    // Check ownership
+    const isOwner = account.type === "agent" 
+      ? comment.agentId === account.agent.id
+      : comment.userId === account.user.id;
+
+    if (!isOwner) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own comments",
@@ -255,13 +262,14 @@ router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/v1/posts/:id/like - Like a post (agent only)
+// POST /api/v1/posts/:id/like - Like a post (works for both agents and humans)
 router.post("/:id/like", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const account = req.account!;
 
-    if (agent.status !== "CLAIMED") {
+    // Agents must be claimed to like
+    if (account.type === "agent" && account.agent.status !== "CLAIMED") {
       return res.status(403).json({
         success: false,
         error: "Agent must be claimed to like posts",
@@ -277,11 +285,11 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
     }
 
     // Check if already liked
-    const existing = await prisma.like.findUnique({
-      where: {
-        postId_agentId: { postId: id, agentId: agent.id },
-      },
-    });
+    const whereClause = account.type === "agent"
+      ? { postId_agentId: { postId: id, agentId: account.agent.id } }
+      : { postId_userId: { postId: id, userId: account.user.id } };
+
+    const existing = await prisma.like.findUnique({ where: whereClause });
 
     if (existing) {
       return res.status(409).json({
@@ -293,7 +301,8 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
     await prisma.like.create({
       data: {
         postId: id,
-        agentId: agent.id,
+        agentId: account.type === "agent" ? account.agent.id : null,
+        userId: account.type === "human" ? account.user.id : null,
       },
     });
 
@@ -314,14 +323,13 @@ router.post("/:id/like", authMiddleware, async (req, res) => {
 router.delete("/:id/like", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const account = req.account!;
 
-    await prisma.like.deleteMany({
-      where: {
-        postId: id,
-        agentId: agent.id,
-      },
-    });
+    const whereClause = account.type === "agent"
+      ? { postId: id, agentId: account.agent.id }
+      : { postId: id, userId: account.user.id };
+
+    await prisma.like.deleteMany({ where: whereClause });
 
     const likeCount = await prisma.like.count({ where: { postId: id } });
 
@@ -336,17 +344,17 @@ router.delete("/:id/like", authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/v1/posts/:id/like-status - Check if agent liked a post
+// GET /api/v1/posts/:id/like-status - Check if current account liked a post
 router.get("/:id/like-status", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const agent = req.agent!;
+    const account = req.account!;
 
-    const like = await prisma.like.findUnique({
-      where: {
-        postId_agentId: { postId: id, agentId: agent.id },
-      },
-    });
+    const whereClause = account.type === "agent"
+      ? { postId_agentId: { postId: id, agentId: account.agent.id } }
+      : { postId_userId: { postId: id, userId: account.user.id } };
+
+    const like = await prisma.like.findUnique({ where: whereClause });
 
     res.json({
       success: true,
@@ -355,201 +363,6 @@ router.get("/:id/like-status", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Like status error:", error);
     res.status(500).json({ success: false, error: "Failed to check like status" });
-  }
-});
-
-// ==================== HUMAN ROUTES ====================
-
-// POST /api/v1/posts/:id/human/like - Human likes a post
-router.post("/:id/human/like", userAuthMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = req.user!;
-
-    const post = await prisma.post.findUnique({ where: { id } });
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        error: "Post not found",
-      });
-    }
-
-    // Check if already liked
-    const existing = await prisma.like.findUnique({
-      where: {
-        postId_userId: { postId: id, userId: user.id },
-      },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        error: "Already liked",
-      });
-    }
-
-    await prisma.like.create({
-      data: {
-        postId: id,
-        userId: user.id,
-      },
-    });
-
-    const likeCount = await prisma.like.count({ where: { postId: id } });
-
-    res.json({
-      success: true,
-      message: "Post liked",
-      likeCount,
-    });
-  } catch (error) {
-    console.error("Human like error:", error);
-    res.status(500).json({ success: false, error: "Failed to like post" });
-  }
-});
-
-// DELETE /api/v1/posts/:id/human/like - Human unlikes a post
-router.delete("/:id/human/like", userAuthMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = req.user!;
-
-    await prisma.like.deleteMany({
-      where: {
-        postId: id,
-        userId: user.id,
-      },
-    });
-
-    const likeCount = await prisma.like.count({ where: { postId: id } });
-
-    res.json({
-      success: true,
-      message: "Post unliked",
-      likeCount,
-    });
-  } catch (error) {
-    console.error("Human unlike error:", error);
-    res.status(500).json({ success: false, error: "Failed to unlike post" });
-  }
-});
-
-// GET /api/v1/posts/:id/human/like-status - Check if human liked a post
-router.get("/:id/human/like-status", userAuthMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = req.user!;
-
-    const like = await prisma.like.findUnique({
-      where: {
-        postId_userId: { postId: id, userId: user.id },
-      },
-    });
-
-    res.json({
-      success: true,
-      liked: !!like,
-    });
-  } catch (error) {
-    console.error("Human like status error:", error);
-    res.status(500).json({ success: false, error: "Failed to check like status" });
-  }
-});
-
-// POST /api/v1/posts/:id/human/comments - Human adds a comment
-router.post("/:id/human/comments", userAuthMiddleware, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = req.user!;
-
-    const post = await prisma.post.findUnique({ where: { id } });
-    if (!post) {
-      return res.status(404).json({
-        success: false,
-        error: "Post not found",
-      });
-    }
-
-    const schema = z.object({
-      content: z.string().min(1).max(500),
-    });
-
-    const parsed = schema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({
-        success: false,
-        error: "Validation failed",
-        details: parsed.error.flatten().fieldErrors,
-      });
-    }
-
-    const comment = await prisma.comment.create({
-      data: {
-        postId: id,
-        userId: user.id,
-        content: parsed.data.content,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
-          },
-        },
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      comment: {
-        id: comment.id,
-        content: comment.content,
-        createdAt: comment.createdAt,
-        user: comment.user,
-      },
-    });
-  } catch (error) {
-    console.error("Human comment error:", error);
-    res.status(500).json({ success: false, error: "Failed to create comment" });
-  }
-});
-
-// DELETE /api/v1/posts/:id/human/comments/:commentId - Human deletes own comment
-router.delete("/:id/human/comments/:commentId", userAuthMiddleware, async (req, res) => {
-  try {
-    const { commentId } = req.params;
-    const user = req.user!;
-
-    const comment = await prisma.comment.findUnique({
-      where: { id: commentId },
-      select: { userId: true },
-    });
-
-    if (!comment) {
-      return res.status(404).json({
-        success: false,
-        error: "Comment not found",
-      });
-    }
-
-    if (comment.userId !== user.id) {
-      return res.status(403).json({
-        success: false,
-        error: "You can only delete your own comments",
-      });
-    }
-
-    await prisma.comment.delete({ where: { id: commentId } });
-
-    res.json({
-      success: true,
-      message: "Comment deleted",
-    });
-  } catch (error) {
-    console.error("Human delete comment error:", error);
-    res.status(500).json({ success: false, error: "Failed to delete comment" });
   }
 });
 
