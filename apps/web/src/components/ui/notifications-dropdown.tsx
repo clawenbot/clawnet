@@ -10,7 +10,11 @@ import {
   Users,
   Check,
   CheckCheck,
-  Loader2
+  Loader2,
+  Briefcase,
+  CheckCircle,
+  XCircle,
+  Mail
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -25,16 +29,25 @@ interface Actor {
 
 interface Notification {
   id: string;
-  type: "LIKE" | "COMMENT" | "FOLLOW" | "CONNECTION_REQUEST" | "CONNECTION_ACCEPTED";
+  type: string;
   read: boolean;
   createdAt: string;
   actor: Actor | null;
   postId?: string | null;
   commentId?: string | null;
   connectionId?: string | null;
+  recommendationId?: string | null;
+  jobId?: string | null;
+  applicationId?: string | null;
+  conversationId?: string | null;
 }
 
-const notificationConfig = {
+const notificationConfig: Record<string, {
+  icon: typeof Heart;
+  color: string;
+  bgColor: string;
+  getText: (actor: string) => string;
+}> = {
   LIKE: {
     icon: Heart,
     color: "text-red-500",
@@ -64,6 +77,42 @@ const notificationConfig = {
     color: "text-green-500",
     bgColor: "bg-green-500/10",
     getText: (actor: string) => `${actor} accepted your connection`,
+  },
+  RECOMMENDATION: {
+    icon: Heart,
+    color: "text-pink-500",
+    bgColor: "bg-pink-500/10",
+    getText: (actor: string) => `${actor} recommended you`,
+  },
+  JOB_APPLICATION: {
+    icon: Briefcase,
+    color: "text-blue-500",
+    bgColor: "bg-blue-500/10",
+    getText: (actor: string) => `${actor} applied to your job`,
+  },
+  JOB_ACCEPTED: {
+    icon: CheckCircle,
+    color: "text-green-500",
+    bgColor: "bg-green-500/10",
+    getText: (actor: string) => `${actor} accepted your application`,
+  },
+  JOB_REJECTED: {
+    icon: XCircle,
+    color: "text-red-500",
+    bgColor: "bg-red-500/10",
+    getText: (actor: string) => `${actor} declined your application`,
+  },
+  JOB_MESSAGE: {
+    icon: Mail,
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-500/10",
+    getText: (actor: string) => `${actor} sent you a message`,
+  },
+  JOB_COMPLETED: {
+    icon: CheckCircle,
+    color: "text-green-600",
+    bgColor: "bg-green-500/10",
+    getText: (actor: string) => `${actor} marked the job as complete`,
   },
 };
 
@@ -163,12 +212,12 @@ export function NotificationsDropdown() {
   };
 
   const getNotificationLink = (notification: Notification) => {
-    if (notification.postId) {
-      return `/?post=${notification.postId}`;
-    }
-    if (notification.connectionId) {
-      return "/network";
-    }
+    // Job-related notifications
+    if (notification.conversationId) return `/messages/${notification.conversationId}`;
+    if (notification.jobId) return `/jobs/${notification.jobId}`;
+    // Social notifications
+    if (notification.postId) return `/?post=${notification.postId}`;
+    if (notification.connectionId) return "/network";
     return getActorLink(notification.actor);
   };
 
@@ -229,7 +278,12 @@ export function NotificationsDropdown() {
                 </div>
               ) : (
                 notifications.map((notification) => {
-                  const config = notificationConfig[notification.type];
+                  const config = notificationConfig[notification.type] || {
+                    icon: Bell,
+                    color: "text-muted-foreground",
+                    bgColor: "bg-muted",
+                    getText: (actor: string) => `${actor} interacted with you`,
+                  };
                   const Icon = config.icon;
                   const actorName = getActorName(notification.actor);
                   const link = getNotificationLink(notification);
