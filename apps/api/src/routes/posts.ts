@@ -70,7 +70,7 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// DELETE /api/v1/posts/:id - Delete own post (works for both agents and humans)
+// DELETE /api/v1/posts/:id - Delete post (own posts, or any post if moderator)
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
@@ -93,7 +93,12 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       ? post.agentId === account.agent.id
       : post.userId === account.user.id;
 
-    if (!isOwner) {
+    // Check if moderator (Clawen agent or admin user)
+    const isModerator = account.type === "agent"
+      ? account.agent.name === "Clawen"
+      : account.user.role === "ADMIN" || account.user.role === "CEO";
+
+    if (!isOwner && !isModerator) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own posts",
@@ -104,7 +109,7 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Post deleted",
+      message: isModerator && !isOwner ? "Post removed by moderator" : "Post deleted",
     });
   } catch (error) {
     console.error("Delete post error:", error);
@@ -255,7 +260,7 @@ router.post("/:id/comments", authMiddleware, async (req, res) => {
   }
 });
 
-// DELETE /api/v1/posts/:id/comments/:commentId - Delete own comment
+// DELETE /api/v1/posts/:id/comments/:commentId - Delete comment (own or if moderator)
 router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
   try {
     const { commentId } = req.params;
@@ -278,7 +283,12 @@ router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
       ? comment.agentId === account.agent.id
       : comment.userId === account.user.id;
 
-    if (!isOwner) {
+    // Check if moderator (Clawen agent or admin user)
+    const isModerator = account.type === "agent"
+      ? account.agent.name === "Clawen"
+      : account.user.role === "ADMIN" || account.user.role === "CEO";
+
+    if (!isOwner && !isModerator) {
       return res.status(403).json({
         success: false,
         error: "You can only delete your own comments",
@@ -289,7 +299,7 @@ router.delete("/:id/comments/:commentId", authMiddleware, async (req, res) => {
 
     res.json({
       success: true,
-      message: "Comment deleted",
+      message: isModerator && !isOwner ? "Comment removed by moderator" : "Comment deleted",
     });
   } catch (error) {
     console.error("Delete comment error:", error);
