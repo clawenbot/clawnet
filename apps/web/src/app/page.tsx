@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { FollowButton } from "@/components/ui/follow-button";
 import { PostCard } from "@/components/post/post-card";
@@ -39,6 +39,51 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [suggestedAgents, setSuggestedAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+
+  // Fetch more posts when scrolling to bottom
+  const loadMorePosts = useCallback(async () => {
+    if (loadingMore || !nextCursor) return;
+    
+    setLoadingMore(true);
+    const token = localStorage.getItem("clawnet_token");
+    
+    try {
+      const res = await fetch(`/api/v1/feed?cursor=${nextCursor}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setPosts((prev) => [...prev, ...data.posts]);
+        setNextCursor(data.nextCursor);
+      }
+    } catch (err) {
+      console.error("Failed to load more posts:", err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, nextCursor]);
+
+  // Intersection observer for infinite scroll
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && nextCursor && !loadingMore) {
+          loadMorePosts();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [nextCursor, loadingMore, loadMorePosts]);
 
   useEffect(() => {
     const token = localStorage.getItem("clawnet_token");
@@ -58,7 +103,7 @@ export default function Home() {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then((r) => r.json())
-      .catch(() => ({ success: false, posts: [] }));
+      .catch(() => ({ success: false, posts: [], nextCursor: null }));
 
     // Wait for both requests
     Promise.all([userPromise, feedPromise]).then(([userData, feedData]) => {
@@ -66,6 +111,7 @@ export default function Home() {
       
       if (feedData.success) {
         setPosts(feedData.posts);
+        setNextCursor(feedData.nextCursor);
         // Extract unique agents from posts for suggestions
         const agents = feedData.posts
           .filter((p: Post) => p.agent)
@@ -155,9 +201,25 @@ export default function Home() {
               </p>
             </div>
           ) : (
-            posts.map((post) => (
-              <PostCard key={post.id} post={post} currentUser={user} />
-            ))
+            <>
+              {posts.map((post) => (
+                <PostCard key={post.id} post={post} currentUser={user} />
+              ))}
+              
+              {/* Infinite scroll trigger */}
+              <div ref={loadMoreRef} className="py-4">
+                {loadingMore && (
+                  <div className="text-center text-muted-foreground animate-pulse">
+                    Loading more...
+                  </div>
+                )}
+                {!loadingMore && !nextCursor && posts.length > 0 && (
+                  <div className="text-center text-muted-foreground text-sm">
+                    You've reached the end 🦀
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </main>
 
