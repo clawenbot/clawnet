@@ -20,7 +20,14 @@ import {
   X,
   Loader2,
   MessageSquarePlus,
-  Pencil
+  Pencil,
+  Briefcase,
+  Clock,
+  DollarSign,
+  CheckCircle2,
+  XCircle,
+  Hourglass,
+  LogOut
 } from "lucide-react";
 import { PostCard } from "@/components/post/post-card";
 
@@ -115,6 +122,37 @@ interface Post {
   comments?: Comment[];
 }
 
+interface JobApplication {
+  id: string;
+  status: "pending" | "accepted" | "rejected" | "withdrawn";
+  coverNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+  job: {
+    id: string;
+    title: string;
+    description: string;
+    skills: string[];
+    budget: string | null;
+    status: "open" | "in_progress" | "completed" | "cancelled";
+    poster: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl: string | null;
+    };
+    createdAt: string;
+  };
+}
+
+interface JobStats {
+  total: number;
+  pending: number;
+  accepted: number;
+  rejected: number;
+  withdrawn: number;
+}
+
 export default function UserProfilePage() {
   const params = useParams();
   const username = params.name as string;
@@ -128,8 +166,10 @@ export default function UserProfilePage() {
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<{id: string; username: string; displayName: string} | null>(null);
-  const [activeTab, setActiveTab] = useState<"activity" | "skills">("activity");
+  const [activeTab, setActiveTab] = useState<"activity" | "skills" | "jobs">("activity");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const [jobs, setJobs] = useState<JobApplication[]>([]);
+  const [jobStats, setJobStats] = useState<JobStats>({ total: 0, pending: 0, accepted: 0, rejected: 0, withdrawn: 0 });
   
   // Recommendation modal state
   const [showRecModal, setShowRecModal] = useState(false);
@@ -168,6 +208,8 @@ export default function UserProfilePage() {
         setProfile(data.profile);
         setPosts(data.posts || []);
         setRecommendations(data.recommendations || []);
+        setJobs(data.jobs || []);
+        setJobStats(data.jobStats || { total: 0, pending: 0, accepted: 0, rejected: 0, withdrawn: 0 });
         // Use isFollowing from API response - no extra call needed!
         if (data.profile.isFollowing !== undefined) {
           setFollowing(data.profile.isFollowing);
@@ -607,6 +649,18 @@ export default function UserProfilePage() {
                 Skills
                 <span className="text-xs opacity-70">({profile.skills?.length || 0})</span>
               </button>
+              <button
+                onClick={() => setActiveTab("jobs")}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                  activeTab === "jobs"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                <Briefcase className="w-4 h-4" />
+                Jobs
+                <span className="text-xs opacity-70">({jobStats.total})</span>
+              </button>
             </div>
 
             {/* Activity Tab */}
@@ -909,6 +963,139 @@ export default function UserProfilePage() {
                 )}
               </div>
             )}
+
+            {/* Jobs Tab */}
+            {activeTab === "jobs" && (
+              <div className="space-y-4">
+                {/* Job Stats */}
+                <div className="bg-card rounded-lg border border-border p-4">
+                  <h3 className="font-semibold flex items-center gap-2 mb-3">
+                    <Briefcase className="w-4 h-4 text-primary" />
+                    Job Statistics
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-blue-500 mb-1">
+                        <Hourglass className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobStats.pending}</p>
+                      <p className="text-xs text-muted-foreground">Pending</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-green-500 mb-1">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobStats.accepted}</p>
+                      <p className="text-xs text-muted-foreground">Accepted</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-red-500 mb-1">
+                        <XCircle className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobStats.rejected}</p>
+                      <p className="text-xs text-muted-foreground">Rejected</p>
+                    </div>
+                    <div className="bg-secondary/30 rounded-lg p-3 text-center">
+                      <div className="flex items-center justify-center gap-1 text-muted-foreground mb-1">
+                        <LogOut className="w-4 h-4" />
+                      </div>
+                      <p className="text-2xl font-bold">{jobStats.withdrawn}</p>
+                      <p className="text-xs text-muted-foreground">Withdrawn</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Job Applications List */}
+                {jobs.length === 0 ? (
+                  <div className="bg-card rounded-lg border border-border p-8 text-center">
+                    <Briefcase className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+                    <p className="text-muted-foreground">No job applications yet.</p>
+                    <p className="text-sm text-muted-foreground/70 mt-1">
+                      This agent hasn&apos;t applied for any jobs.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Active/In Progress Jobs */}
+                    {(() => {
+                      const activeJobs = jobs.filter(j => j.status === "accepted" && (j.job.status === "in_progress" || j.job.status === "open"));
+                      if (activeJobs.length === 0) return null;
+                      return (
+                        <div>
+                          <h4 className="text-sm font-semibold text-green-600 mb-2 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Active Jobs ({activeJobs.length})
+                          </h4>
+                          <div className="space-y-3">
+                            {activeJobs.map((app) => (
+                              <JobApplicationCard key={app.id} application={app} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Pending Applications */}
+                    {(() => {
+                      const pendingJobs = jobs.filter(j => j.status === "pending");
+                      if (pendingJobs.length === 0) return null;
+                      return (
+                        <div>
+                          <h4 className="text-sm font-semibold text-blue-600 mb-2 flex items-center gap-2">
+                            <Hourglass className="w-4 h-4" />
+                            Pending Applications ({pendingJobs.length})
+                          </h4>
+                          <div className="space-y-3">
+                            {pendingJobs.map((app) => (
+                              <JobApplicationCard key={app.id} application={app} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Completed Jobs */}
+                    {(() => {
+                      const completedJobs = jobs.filter(j => j.status === "accepted" && j.job.status === "completed");
+                      if (completedJobs.length === 0) return null;
+                      return (
+                        <div>
+                          <h4 className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Completed Jobs ({completedJobs.length})
+                          </h4>
+                          <div className="space-y-3">
+                            {completedJobs.map((app) => (
+                              <JobApplicationCard key={app.id} application={app} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Rejected/Withdrawn Applications */}
+                    {(() => {
+                      const closedApps = jobs.filter(j => j.status === "rejected" || j.status === "withdrawn");
+                      if (closedApps.length === 0) return null;
+                      return (
+                        <details className="group">
+                          <summary className="text-sm font-semibold text-muted-foreground mb-2 flex items-center gap-2 cursor-pointer list-none">
+                            <XCircle className="w-4 h-4" />
+                            Closed Applications ({closedApps.length})
+                            <span className="text-xs font-normal ml-auto group-open:hidden">Click to expand</span>
+                          </summary>
+                          <div className="space-y-3 mt-2">
+                            {closedApps.map((app) => (
+                              <JobApplicationCard key={app.id} application={app} />
+                            ))}
+                          </div>
+                        </details>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1051,5 +1238,138 @@ export default function UserProfilePage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Job Application Card Component
+function JobApplicationCard({ application }: { application: JobApplication }) {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    if (days < 30) return `${Math.floor(days / 7)}w ago`;
+    return date.toLocaleDateString();
+  };
+
+  const getStatusBadge = () => {
+    switch (application.status) {
+      case "pending":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-blue-500/10 text-blue-600 flex items-center gap-1">
+            <Hourglass className="w-3 h-3" />
+            Pending
+          </span>
+        );
+      case "accepted":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-600 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            Accepted
+          </span>
+        );
+      case "rejected":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-600 flex items-center gap-1">
+            <XCircle className="w-3 h-3" />
+            Rejected
+          </span>
+        );
+      case "withdrawn":
+        return (
+          <span className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground flex items-center gap-1">
+            <LogOut className="w-3 h-3" />
+            Withdrawn
+          </span>
+        );
+    }
+  };
+
+  const getJobStatusBadge = () => {
+    switch (application.job.status) {
+      case "open":
+        return <span className="text-xs text-green-600">Open</span>;
+      case "in_progress":
+        return <span className="text-xs text-blue-600">In Progress</span>;
+      case "completed":
+        return <span className="text-xs text-muted-foreground">Completed</span>;
+      case "cancelled":
+        return <span className="text-xs text-red-600">Cancelled</span>;
+    }
+  };
+
+  return (
+    <Link href={`/jobs/${application.job.id}`}>
+      <div className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors cursor-pointer">
+        <div className="flex justify-between items-start mb-2">
+          <div className="flex-1 min-w-0">
+            <h4 className="font-semibold text-sm hover:text-primary transition-colors truncate">
+              {application.job.title}
+            </h4>
+            <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+              {application.job.description}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+            {getStatusBadge()}
+          </div>
+        </div>
+
+        {/* Skills */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {application.job.skills.slice(0, 4).map((skill) => (
+            <span
+              key={skill}
+              className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full"
+            >
+              {skill}
+            </span>
+          ))}
+          {application.job.skills.length > 4 && (
+            <span className="text-xs text-muted-foreground">
+              +{application.job.skills.length - 4} more
+            </span>
+          )}
+        </div>
+
+        {/* Meta */}
+        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            Applied {formatDate(application.createdAt)}
+          </div>
+          {application.job.budget && (
+            <div className="flex items-center gap-1">
+              <DollarSign className="w-3 h-3" />
+              {application.job.budget}
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            Job: {getJobStatusBadge()}
+          </div>
+          <Link
+            href={`/user/${application.job.poster.username}`}
+            onClick={(e) => e.stopPropagation()}
+            className="ml-auto flex items-center gap-1.5 hover:text-primary transition-colors"
+          >
+            <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+              {application.job.poster.avatarUrl ? (
+                <img
+                  src={application.job.poster.avatarUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-[8px]">?</span>
+              )}
+            </div>
+            {application.job.poster.displayName}
+          </Link>
+        </div>
+      </div>
+    </Link>
   );
 }

@@ -106,8 +106,8 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         isFollowing = !!follow;
       }
 
-      // Get recommendations with stats
-      const [recommendations, recommendationStats] = await Promise.all([
+      // Get recommendations with stats, and job applications
+      const [recommendations, recommendationStats, jobApplications, jobStats] = await Promise.all([
         prisma.recommendation.findMany({
           where: { toAgentId: agent.id },
           orderBy: { createdAt: "desc" },
@@ -126,6 +126,32 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         prisma.recommendation.aggregate({
           where: { toAgentId: agent.id },
           _avg: { rating: true },
+          _count: true,
+        }),
+        // Get job applications for this agent
+        prisma.jobApplication.findMany({
+          where: { agentId: agent.id },
+          orderBy: { createdAt: "desc" },
+          take: 20,
+          include: {
+            job: {
+              include: {
+                poster: {
+                  select: {
+                    id: true,
+                    username: true,
+                    displayName: true,
+                    avatarUrl: true,
+                  },
+                },
+              },
+            },
+          },
+        }),
+        // Get job stats (counts by status)
+        prisma.jobApplication.groupBy({
+          by: ["status"],
+          where: { agentId: agent.id },
           _count: true,
         }),
       ]);
@@ -235,6 +261,32 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
             safety: getSafetyMetadata(c.content),
           })),
         })),
+        // Job applications for the Jobs tab
+        jobs: jobApplications.map((a) => ({
+          id: a.id,
+          status: a.status.toLowerCase(),
+          coverNote: a.coverNote,
+          createdAt: a.createdAt,
+          updatedAt: a.updatedAt,
+          job: {
+            id: a.job.id,
+            title: a.job.title,
+            description: a.job.description,
+            skills: a.job.skills,
+            budget: a.job.budget,
+            status: a.job.status.toLowerCase(),
+            poster: a.job.poster,
+            createdAt: a.job.createdAt,
+          },
+        })),
+        // Job statistics
+        jobStats: {
+          total: jobApplications.length,
+          pending: jobStats.find((s) => s.status === "PENDING")?._count || 0,
+          accepted: jobStats.find((s) => s.status === "ACCEPTED")?._count || 0,
+          rejected: jobStats.find((s) => s.status === "REJECTED")?._count || 0,
+          withdrawn: jobStats.find((s) => s.status === "WITHDRAWN")?._count || 0,
+        },
       });
     }
 
