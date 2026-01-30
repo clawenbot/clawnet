@@ -78,7 +78,7 @@ router.get("/", authMiddleware, requireAccountType("human"), async (req, res) =>
     );
 
     // Get top 3 suggestions (using the suggestions endpoint logic)
-    const suggestions = await getAgentSuggestions(userId, 3);
+    const suggestionsResult = await getAgentSuggestions(userId, 3);
 
     res.json({
       success: true,
@@ -94,7 +94,7 @@ router.get("/", authMiddleware, requireAccountType("human"), async (req, res) =>
         })),
       },
       ownedAgents: ownedAgentsWithStats,
-      suggestions,
+      suggestions: suggestionsResult.agents,
     });
   } catch (error) {
     console.error("Get network error:", error);
@@ -102,17 +102,19 @@ router.get("/", authMiddleware, requireAccountType("human"), async (req, res) =>
   }
 });
 
-// GET /api/v1/network/suggestions - Suggested agents to follow
+// GET /api/v1/network/suggestions - Discover agents to follow
 router.get("/suggestions", authMiddleware, requireAccountType("human"), async (req, res) => {
   try {
     const userId = req.account!.user!.id;
-    const limit = Math.min(Number(req.query.limit) || 10, 20);
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+    const cursor = req.query.cursor as string | undefined;
 
-    const suggestions = await getAgentSuggestions(userId, limit);
+    const suggestions = await getAgentSuggestions(userId, limit, cursor);
 
     res.json({
       success: true,
-      suggestions,
+      suggestions: suggestions.agents,
+      nextCursor: suggestions.nextCursor,
     });
   } catch (error) {
     console.error("Get suggestions error:", error);
@@ -121,7 +123,7 @@ router.get("/suggestions", authMiddleware, requireAccountType("human"), async (r
 });
 
 // Helper function to get agent suggestions for a user
-async function getAgentSuggestions(userId: string, limit: number) {
+async function getAgentSuggestions(userId: string, limit: number, cursor?: string) {
   // Get IDs of agents the user already follows
   const followedAgentIds = await prisma.follow
     .findMany({
@@ -140,57 +142,10 @@ async function getAgentSuggestions(userId: string, limit: number) {
 
   const excludeIds = [...followedAgentIds, ...ownedAgentIds];
 
-  // Get skills from jobs the user has posted (for relevance)
-  const userJobs = await prisma.job.findMany({
-    where: { posterId: userId },
-    select: { skills: true },
-  });
-  const userJobSkills = [...new Set(userJobs.flatMap((j) => j.skills))];
-
-  // Strategy: Mix of skill-matched, popular, and recently active agents
-  let suggestions: any[] = [];
-
-  // 1. Skill-matched agents (if user has posted jobs)
-  if (userJobSkills.length > 0) {
-    const skillMatched = await prisma.agent.findMany({
-      where: {
-        id: { notIn: excludeIds },
-        status: "CLAIMED",
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        avatarUrl: true,
-        karma: true,
-        skills: true,
-        _count: {
-          select: { followers: true },
-        },
-      },
-      take: limit * 2, // Get more to filter
-    });
-
-    // Score by skill overlap
-    const scored = skillMatched.map((agent) => {
-      const agentSkills = Array.isArray(agent.skills)
-        ? agent.skills.map((s: any) => (typeof s === "string" ? s : s.name).toLowerCase())
-        : [];
-      const overlap = userJobSkills.filter((s) =>
-        agentSkills.some((as: string) => as.includes(s.toLowerCase()) || s.toLowerCase().includes(as))
-      ).length;
-      return { agent, score: overlap + agent._count.followers / 100 };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-    suggestions = scored.slice(0, Math.ceil(limit / 2)).map((s) => s.agent);
-  }
-
-  // 2. Popular agents (by follower count)
-  const existingIds = suggestions.map((a) => a.id);
-  const popular = await prisma.agent.findMany({
+  // Get all claimed agents (excluding followed and owned), sorted by popularity then activity
+  const agents = await prisma.agent.findMany({
     where: {
-      id: { notIn: [...excludeIds, ...existingIds] },
+      ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
       status: "CLAIMED",
     },
     select: {
@@ -200,28 +155,34 @@ async function getAgentSuggestions(userId: string, limit: number) {
       avatarUrl: true,
       karma: true,
       skills: true,
+      lastActiveAt: true,
       _count: {
         select: { followers: true },
       },
     },
-    orderBy: {
-      followers: { _count: "desc" },
-    },
-    take: limit - suggestions.length,
+    orderBy: [
+      { followers: { _count: "desc" } },
+      { lastActiveAt: "desc" },
+    ],
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    take: limit,
   });
 
-  suggestions = [...suggestions, ...popular];
+  const nextCursor = agents.length === limit ? agents[agents.length - 1].id : null;
 
   // Format response
-  return suggestions.slice(0, limit).map((agent) => ({
-    id: agent.id,
-    name: agent.name,
-    description: agent.description,
-    avatarUrl: agent.avatarUrl,
-    karma: agent.karma,
-    skills: agent.skills,
-    followerCount: agent._count.followers,
-  }));
+  return {
+    agents: agents.map((agent) => ({
+      id: agent.id,
+      name: agent.name,
+      description: agent.description,
+      avatarUrl: agent.avatarUrl,
+      karma: agent.karma,
+      skills: agent.skills,
+      followerCount: agent._count.followers,
+    })),
+    nextCursor,
+  };
 }
 
 export default router;

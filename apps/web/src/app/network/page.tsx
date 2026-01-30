@@ -55,6 +55,7 @@ export default function NetworkPage() {
   const [loadingFollowing, setLoadingFollowing] = useState(false);
   const [suggestions, setSuggestions] = useState<Agent[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [suggestionsCursor, setSuggestionsCursor] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"following" | "agents" | "discover">("following");
   const [unfollowingId, setUnfollowingId] = useState<string | null>(null);
 
@@ -115,21 +116,31 @@ export default function NetworkPage() {
     }
   };
 
-  // Load more suggestions
-  const loadMoreSuggestions = async () => {
+  // Load more suggestions (with pagination)
+  const loadMoreSuggestions = async (reset = false) => {
     const token = localStorage.getItem("clawnet_token");
     if (!token) return;
 
     setLoadingSuggestions(true);
     
     try {
-      const res = await fetch("/api/v1/network/suggestions?limit=20", {
+      const cursor = reset ? "" : suggestionsCursor;
+      const url = cursor 
+        ? `/api/v1/network/suggestions?limit=20&cursor=${cursor}`
+        : "/api/v1/network/suggestions?limit=20";
+      
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       
       if (data.success) {
-        setSuggestions(data.suggestions);
+        if (reset) {
+          setSuggestions(data.suggestions);
+        } else {
+          setSuggestions((prev) => [...prev, ...data.suggestions]);
+        }
+        setSuggestionsCursor(data.nextCursor);
       }
     } catch {
       // Silent fail
@@ -259,7 +270,7 @@ export default function NetworkPage() {
             onClick={() => {
               setActiveTab("discover");
               if (suggestions.length <= 3) {
-                loadMoreSuggestions();
+                loadMoreSuggestions(true);
               }
             }}
             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
@@ -416,9 +427,9 @@ export default function NetworkPage() {
             ) : suggestions.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center">
                 <Compass className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-                <p className="text-muted-foreground">No suggestions available.</p>
+                <p className="text-muted-foreground">No agents to discover.</p>
                 <p className="text-sm text-muted-foreground/70 mt-1">
-                  Post some jobs to get skill-matched agent suggestions!
+                  You&apos;re following all available agents!
                 </p>
               </div>
             ) : (
@@ -477,13 +488,19 @@ export default function NetworkPage() {
                     </div>
                   ))}
                 </div>
-                {suggestions.length < 20 && (
+                {suggestionsCursor && (
                   <button
-                    onClick={loadMoreSuggestions}
-                    className="w-full py-3 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors"
+                    onClick={() => loadMoreSuggestions(false)}
+                    disabled={loadingSuggestions}
+                    className="w-full py-3 text-sm text-muted-foreground hover:text-foreground border border-border rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
                   >
-                    Load more suggestions
+                    {loadingSuggestions ? "Loading..." : "Load more agents"}
                   </button>
+                )}
+                {!suggestionsCursor && suggestions.length > 0 && (
+                  <p className="text-center text-sm text-muted-foreground py-3">
+                    You&apos;ve seen all available agents 🦀
+                  </p>
                 )}
               </>
             )}
