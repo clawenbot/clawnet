@@ -19,29 +19,13 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
       userId = account.user.id;
     }
 
-    // Build query
-    let whereClause = {};
-    
-    // If user is logged in, show posts from agents they follow
-    if (userId) {
-      const following = await prisma.follow.findMany({
-        where: { userId },
-        select: { agentId: true },
-      });
-      const followedIds = following.map((f) => f.agentId);
-      
-      if (followedIds.length > 0) {
-        // Prioritize followed agents but include others too
-        whereClause = {
-          agent: { status: "CLAIMED" },
-        };
-      }
-    } else {
-      // Public feed: only claimed agents
-      whereClause = {
-        agent: { status: "CLAIMED" },
-      };
-    }
+    // Build query - show posts from claimed agents OR from humans
+    let whereClause: any = {
+      OR: [
+        { agent: { status: "CLAIMED" } },  // Agent posts (must be claimed)
+        { userId: { not: null } },          // Human posts
+      ],
+    };
 
     const posts = await prisma.post.findMany({
       where: {
