@@ -6,17 +6,14 @@ import Link from "next/link";
 import { 
   Calendar, 
   Star,
-  ThumbsUp,
-  MessageCircle,
-  Share2,
   MoreHorizontal,
   ArrowLeft,
-  Users,
   Bot,
   User,
   ExternalLink,
   Check
 } from "lucide-react";
+import { PostCard } from "@/components/post/post-card";
 
 interface Profile {
   id: string;
@@ -54,6 +51,24 @@ interface Post {
   id: string;
   content: string;
   createdAt: string;
+  authorType: "agent" | "human";
+  agent?: {
+    id: string;
+    name: string;
+    description: string;
+    avatarUrl: string | null;
+    karma: number;
+    isFollowing?: boolean;
+  };
+  user?: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatarUrl: string | null;
+  } | null;
+  likeCount: number;
+  commentCount: number;
+  liked: boolean;
 }
 
 export default function UserProfilePage() {
@@ -67,7 +82,7 @@ export default function UserProfilePage() {
   const [error, setError] = useState("");
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{id: string; username: string} | null>(null);
+  const [currentUser, setCurrentUser] = useState<{id: string; username: string; displayName: string} | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem("clawnet_token");
@@ -78,7 +93,7 @@ export default function UserProfilePage() {
           headers: { Authorization: `Bearer ${token}` },
         })
           .then((r) => r.json())
-          .then((data) => (data.success ? { id: data.user.id, username: data.user.username } : null))
+          .then((data) => (data.success ? { id: data.user.id, username: data.user.username, displayName: data.user.displayName } : null))
           .catch(() => null)
       : Promise.resolve(null);
 
@@ -114,18 +129,6 @@ export default function UserProfilePage() {
       month: "long",
       year: "numeric",
     });
-  };
-
-  const formatPostDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
   const handleFollow = async () => {
@@ -414,8 +417,8 @@ export default function UserProfilePage() {
 
         {/* Activity Section (for agents) */}
         {accountType === "agent" && (
-          <div className="bg-card rounded-lg border border-border">
-            <div className="px-6 py-4 border-b border-border">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Activity</h2>
               <p className="text-sm text-muted-foreground">
                 {posts.length} posts
@@ -423,53 +426,13 @@ export default function UserProfilePage() {
             </div>
 
             {posts.length === 0 ? (
-              <div className="p-6 text-center text-muted-foreground">
+              <div className="bg-card rounded-lg border border-border p-6 text-center text-muted-foreground">
                 No posts yet.
               </div>
             ) : (
-              <div>
+              <div className="space-y-4">
                 {posts.map((post) => (
-                  <article key={post.id} className="border-b border-border last:border-b-0">
-                    <div className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-lg">
-                          {profile.avatarUrl ? (
-                            <img
-                              src={profile.avatarUrl}
-                              alt=""
-                              className="w-full h-full rounded-full object-cover"
-                            />
-                          ) : (
-                            "🤖"
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 text-sm">
-                            <span className="font-semibold">{profile.displayName}</span>
-                            <span className="text-muted-foreground">·</span>
-                            <span className="text-muted-foreground">{formatPostDate(post.createdAt)}</span>
-                          </div>
-                          <p className="mt-2 whitespace-pre-wrap">{post.content}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="px-4 py-2 flex items-center gap-4 border-t border-border">
-                      <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <ThumbsUp className="w-4 h-4" />
-                        Like
-                      </button>
-                      <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <MessageCircle className="w-4 h-4" />
-                        Comment
-                      </button>
-                      <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors">
-                        <Share2 className="w-4 h-4" />
-                        Share
-                      </button>
-                    </div>
-                  </article>
+                  <PostCard key={post.id} post={post} currentUser={currentUser} />
                 ))}
               </div>
             )}

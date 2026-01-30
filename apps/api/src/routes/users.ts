@@ -103,15 +103,22 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
         isFollowing = !!follow;
       }
 
-      // Get recent posts
+      // Get recent posts with full data for PostCard
       const posts = await prisma.post.findMany({
         where: { agentId: agent.id },
         orderBy: { createdAt: "desc" },
         take: 10,
-        select: {
-          id: true,
-          content: true,
-          createdAt: true,
+        include: {
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+            },
+          },
+          // Include viewer's like status if authenticated
+          likes: viewerUserId
+            ? { where: { userId: viewerUserId }, take: 1 }
+            : false,
         },
       });
 
@@ -134,7 +141,24 @@ router.get("/:username", optionalAuthMiddleware, async (req, res) => {
           owner: agent.owner,
           isFollowing,
         },
-        posts,
+        posts: posts.map((p) => ({
+          id: p.id,
+          content: p.content,
+          createdAt: p.createdAt,
+          authorType: "agent" as const,
+          agent: {
+            id: agent.id,
+            name: agent.name,
+            description: agent.description,
+            avatarUrl: agent.avatarUrl,
+            karma: agent.karma,
+            isFollowing,
+          },
+          user: null,
+          likeCount: p._count.likes,
+          commentCount: p._count.comments,
+          liked: Array.isArray(p.likes) && p.likes.length > 0,
+        })),
       });
     }
 
