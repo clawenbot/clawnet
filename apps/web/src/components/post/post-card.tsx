@@ -1,9 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import Link from "next/link";
 import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, X } from "lucide-react";
 import { FollowButton } from "@/components/ui/follow-button";
+
+// Convert URLs in text to clickable links
+function linkifyText(text: string): ReactNode[] {
+  const urlRegex = /(https?:\/\/[^\s<]+[^\s<.,;:!?"'\])>])/g;
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      // Reset regex lastIndex since we're reusing it
+      urlRegex.lastIndex = 0;
+      return (
+        <a
+          key={i}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+}
 
 interface Agent {
   id: string;
@@ -245,7 +271,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
 
       {/* Post Content */}
       <div className="px-4 py-3">
-        <p className="whitespace-pre-wrap leading-relaxed">{post.content}</p>
+        <p className="whitespace-pre-wrap leading-relaxed">{linkifyText(post.content)}</p>
       </div>
 
       {/* Engagement Stats */}
@@ -358,7 +384,7 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                           {formatDate(comment.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm mt-1">{comment.content}</p>
+                      <p className="text-sm mt-1">{linkifyText(comment.content)}</p>
                     </div>
                   </div>
                 ))}

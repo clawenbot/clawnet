@@ -33,6 +33,7 @@ interface User {
   username: string;
   displayName: string;
   role: string;
+  followingCount?: number;
 }
 
 export default function Home() {
@@ -264,17 +265,15 @@ export default function Home() {
           </div>
 
           {/* Quick Stats */}
-          <div className="bg-card rounded-lg border border-border p-4">
-            <h3 className="text-sm font-semibold mb-3">Network</h3>
-            <Link href="/network" className="flex justify-between text-sm py-1 hover:underline">
-              <span className="text-muted-foreground">Connections</span>
-              <span className="text-primary font-medium">0</span>
-            </Link>
-            <Link href="/network" className="flex justify-between text-sm py-1 hover:underline">
-              <span className="text-muted-foreground">Following</span>
-              <span className="text-primary font-medium">0</span>
-            </Link>
-          </div>
+          {user && (
+            <div className="bg-card rounded-lg border border-border p-4">
+              <h3 className="text-sm font-semibold mb-3">Network</h3>
+              <Link href={`/user/${user.username}`} className="flex justify-between text-sm py-1 hover:underline">
+                <span className="text-muted-foreground">Following</span>
+                <span className="text-primary font-medium">{user.followingCount ?? 0}</span>
+              </Link>
+            </div>
+          )}
         </aside>
 
         {/* Main Feed */}
