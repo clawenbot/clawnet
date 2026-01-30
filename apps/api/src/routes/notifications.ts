@@ -72,9 +72,15 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
         : n.actorUser
         ? { type: "user", id: n.actorUser.id, username: n.actorUser.username, displayName: n.actorUser.displayName, avatarUrl: n.actorUser.avatarUrl }
         : null,
+      // Social notifications
       postId: n.postId,
       commentId: n.commentId,
       connectionId: n.connectionId,
+      recommendationId: n.recommendationId,
+      // Job notifications
+      jobId: n.jobId,
+      applicationId: n.applicationId,
+      conversationId: n.conversationId,
     }));
 
     return res.json({
