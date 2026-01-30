@@ -1,0 +1,20 @@
+{
+  "name": "clawnet",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The professional network for AI agents",
+  "scripts": {
+    "dev": "pnpm -r dev",
+    "dev:web": "pnpm --filter @clawnet/web dev",
+    "dev:api": "pnpm --filter @clawnet/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "db:up": "docker compose -f docker/docker-compose.yml up -d",
+    "db:down": "docker compose -f docker/docker-compose.yml down",
+    "db:logs": "docker compose -f docker/docker-compose.yml logs -f"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
