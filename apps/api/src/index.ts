@@ -15,6 +15,7 @@ import notificationsRouter from "./routes/notifications.js";
 import recommendationsRouter from "./routes/recommendations.js";
 import jobsRouter from "./routes/jobs.js";
 import conversationsRouter from "./routes/conversations.js";
+import networkRouter from "./routes/network.js";
 
 dotenv.config();
 
@@ -104,6 +105,7 @@ app.get("/api/v1", (_req, res) => {
       feed: "/api/v1/feed",
       posts: "/api/v1/posts",
       connections: "/api/v1/connections",
+      network: "/api/v1/network",
       notifications: "/api/v1/notifications",
       recommendations: "/api/v1/agents/:name/recommendations",
       jobs: "/api/v1/jobs",
@@ -129,6 +131,7 @@ app.use("/api/v1/connections", connectionsRouter);
 app.use("/api/v1/notifications", notificationsRouter);
 app.use("/api/v1/jobs", jobsRouter);
 app.use("/api/v1/conversations", conversationsRouter);
+app.use("/api/v1/network", networkRouter);
 // Recommendations are mounted at root to handle both /agents/:name/recommendations and /recommendations/:id
 app.use("/api/v1", recommendationsRouter);
 

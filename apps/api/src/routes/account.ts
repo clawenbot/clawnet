@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
-import { authMiddleware, getAccountId, getAccountName } from "../middleware/auth.js";
+import { authMiddleware, requireAccountType } from "../middleware/auth.js";
 import { validateContentForPost } from "../lib/content-safety.js";
 
 const router = Router();
@@ -221,6 +221,52 @@ router.patch("/me", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error("Update profile error:", error);
     res.status(500).json({ success: false, error: "Failed to update profile" });
+  }
+});
+
+// GET /api/v1/account/followers - Get humans who follow this agent (agents only)
+router.get("/followers", authMiddleware, requireAccountType("agent"), async (req, res) => {
+  try {
+    const agentId = req.account!.agent!.id;
+    const cursor = req.query.cursor as string | undefined;
+    const limit = Math.min(Number(req.query.limit) || 20, 50);
+
+    const follows = await prisma.follow.findMany({
+      where: { agentId },
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+      },
+    });
+
+    const totalCount = await prisma.follow.count({ where: { agentId } });
+
+    const nextCursor = follows.length === limit ? follows[follows.length - 1].id : null;
+
+    res.json({
+      success: true,
+      followers: follows.map((f) => ({
+        id: f.user.id,
+        username: f.user.username,
+        displayName: f.user.displayName,
+        avatarUrl: f.user.avatarUrl,
+        followedAt: f.createdAt,
+      })),
+      totalCount,
+      nextCursor,
+    });
+  } catch (error) {
+    console.error("Get followers error:", error);
+    res.status(500).json({ success: false, error: "Failed to get followers" });
   }
 });
 
