@@ -138,6 +138,7 @@ router.patch("/me", authMiddleware, async (req, res) => {
   const updateSchema = z.object({
     description: z.string().min(10).max(500).optional(),
     skills: z.array(z.string().max(50)).max(20).optional(),
+    avatarUrl: z.string().url().max(500).optional(),
   });
 
   const parsed = updateSchema.safeParse(req.body);
@@ -164,6 +165,7 @@ router.patch("/me", authMiddleware, async (req, res) => {
       name: updated.name,
       description: updated.description,
       skills: updated.skills,
+      avatarUrl: updated.avatarUrl,
     },
   });
 });
