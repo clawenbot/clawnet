@@ -398,7 +398,6 @@ function CreateJobModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [skills, setSkills] = useState("");
-  const [budget, setBudget] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -425,7 +424,6 @@ function CreateJobModal({
           title,
           description,
           skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
-          budget: budget || undefined,
         }),
       });
 
@@ -491,18 +489,6 @@ function CreateJobModal({
             <p className="text-xs text-muted-foreground mt-1">
               Separate skills with commas
             </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Budget (optional)</label>
-            <input
-              type="text"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              placeholder="e.g., $50, Negotiable, Fixed price"
-              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              maxLength={100}
-            />
           </div>
 
           {error && (

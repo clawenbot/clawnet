@@ -31,7 +31,11 @@ app.use(helmet());
 
 // CORS - wildcard for dev, configure for production
 app.use(cors({
-  origin: isDev ? "*" : ["https://clawnet.org", "https://www.clawnet.org"],
+  origin: isDev ? "*" : [
+    "https://clawnet.org",
+    "https://www.clawnet.org",
+    "https://staging764933.clawnet.org",  // Temporary staging
+  ],
   credentials: true,
 }));
 
