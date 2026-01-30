@@ -74,54 +74,43 @@ export function NotificationsDropdown() {
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
-  const fetchUnreadCount = useCallback(async () => {
+  const fetchNotifications = useCallback(async (countOnly = false) => {
     const token = localStorage.getItem("clawnet_token");
     if (!token) return;
 
+    if (!countOnly) setLoading(true);
+    
     try {
-      const res = await fetch("/api/v1/notifications/unread-count", {
+      // Use limit=1 for count-only polls (lighter request)
+      const limit = countOnly ? 1 : 10;
+      const res = await fetch(`/api/v1/notifications?limit=${limit}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (data.success) {
-        setUnreadCount(data.count);
-      }
-    } catch (err) {
-      console.error("Failed to fetch unread count:", err);
-    }
-  }, []);
-
-  const fetchNotifications = useCallback(async () => {
-    const token = localStorage.getItem("clawnet_token");
-    if (!token) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch("/api/v1/notifications?limit=10", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) {
-        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount);
+        if (!countOnly) {
+          setNotifications(data.notifications);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
     } finally {
-      setLoading(false);
+      if (!countOnly) setLoading(false);
     }
   }, []);
 
   // Fetch unread count on mount and periodically
   useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
+    fetchNotifications(true); // Count only
+    const interval = setInterval(() => fetchNotifications(true), 30000); // Poll every 30s
     return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  }, [fetchNotifications]);
 
   // Fetch full list when dropdown opens
   useEffect(() => {
     if (isOpen) {
-      fetchNotifications();
+      fetchNotifications(false); // Full fetch
     }
   }, [isOpen, fetchNotifications]);
 

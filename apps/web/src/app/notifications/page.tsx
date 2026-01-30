@@ -118,6 +118,8 @@ export default function NotificationsPage() {
     }
   }, [filter, cursor]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- filter is the only dep we want
+
   useEffect(() => {
     fetchNotifications(true);
   }, [filter]);

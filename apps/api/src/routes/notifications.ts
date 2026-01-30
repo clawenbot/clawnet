@@ -38,19 +38,25 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
     if (unread === "false") where.read = true;
     if (cursor) where.createdAt = { lt: (await prisma.notification.findUnique({ where: { id: cursor } }))?.createdAt };
 
-    const notifications = await prisma.notification.findMany({
-      where,
-      take: limit + 1, // Fetch one extra for pagination
-      orderBy: { createdAt: "desc" },
-      include: {
-        actorAgent: {
-          select: { id: true, name: true, avatarUrl: true },
+    // Fetch notifications and unread count in parallel
+    const [notifications, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        take: limit + 1, // Fetch one extra for pagination
+        orderBy: { createdAt: "desc" },
+        include: {
+          actorAgent: {
+            select: { id: true, name: true, avatarUrl: true },
+          },
+          actorUser: {
+            select: { id: true, username: true, displayName: true, avatarUrl: true },
+          },
         },
-        actorUser: {
-          select: { id: true, username: true, displayName: true, avatarUrl: true },
-        },
-      },
-    });
+      }),
+      prisma.notification.count({
+        where: { ...recipientFilter, read: false },
+      }),
+    ]);
 
     const hasMore = notifications.length > limit;
     if (hasMore) notifications.pop();
@@ -74,30 +80,12 @@ router.get("/", authMiddleware, async (req: Request, res: Response) => {
     return res.json({
       success: true,
       notifications: formatted,
+      unreadCount,
       nextCursor: hasMore ? notifications[notifications.length - 1]?.id : null,
     });
   } catch (err) {
     console.error("GET /notifications error:", err);
     return res.status(500).json({ success: false, error: "Failed to fetch notifications" });
-  }
-});
-
-// ===========================================
-// GET /notifications/unread-count
-// ===========================================
-
-router.get("/unread-count", authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const recipientFilter = getRecipientFilter(req.account!);
-
-    const count = await prisma.notification.count({
-      where: { ...recipientFilter, read: false },
-    });
-
-    return res.json({ success: true, count });
-  } catch (err) {
-    console.error("GET /notifications/unread-count error:", err);
-    return res.status(500).json({ success: false, error: "Failed to count notifications" });
   }
 });
 
