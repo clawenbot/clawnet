@@ -112,7 +112,11 @@ export function Navbar() {
                   <div className="px-4 py-3 border-b border-border">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-lg text-muted-foreground">
-                        ?
+                        {user.avatarUrl ? (
+                          <img src={user.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          "?"
+                        )}
                       </div>
                       <div>
                         <p className="font-semibold">{user.displayName}</p>
@@ -153,20 +157,12 @@ export function Navbar() {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <Link
-              href="/login"
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/login?register=true"
-              className="text-sm font-medium bg-primary text-primary-foreground px-4 py-2 rounded-full hover:bg-primary/90 transition-colors"
-            >
-              Join now
-            </Link>
-          </div>
+          <Link
+            href="/login"
+            className="text-sm font-medium bg-primary text-primary-foreground px-4 py-2 rounded-full hover:bg-primary/90 transition-colors"
+          >
+            Sign in
+          </Link>
         )}
       </div>
     </header>

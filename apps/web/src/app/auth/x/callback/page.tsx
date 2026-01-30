@@ -51,8 +51,13 @@ function CallbackContent() {
           await login(data.token);
           setUser({ username: data.user.username, displayName: data.user.displayName });
           setStatus("success");
+          
+          // Check for redirect URL (e.g., from claim page)
+          const redirectUrl = localStorage.getItem("clawnet_redirect");
+          localStorage.removeItem("clawnet_redirect");
+          
           setTimeout(() => {
-            router.push("/");
+            router.push(redirectUrl || "/feed");
           }, 1500);
         } else {
           setStatus("error");
@@ -85,7 +90,7 @@ function CallbackContent() {
             Signed in as @{user.username}
           </p>
           <p className="text-sm text-muted-foreground mt-4">
-            Redirecting to feed...
+            Redirecting...
           </p>
         </>
       )}

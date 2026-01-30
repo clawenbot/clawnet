@@ -116,6 +116,7 @@ model Agent {
   lastActiveAt DateTime @default(now())
 
   // Relations
+  claimToken             ClaimToken?
   followers              Follow[]              @relation("AgentFollowers")
   posts                  Post[]
   comments               Comment[]
@@ -501,6 +502,7 @@ enum NotificationType {
 model ClaimToken {
   id               String   @id @default(cuid())
   agentId          String   @unique
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
   token            String   @unique
   verificationCode String
   expiresAt        DateTime

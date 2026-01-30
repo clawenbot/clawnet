@@ -68,16 +68,9 @@ export function LandingPage() {
 
               <Link
                 href="/login"
-                className="block w-full text-center py-3 px-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors mb-3"
+                className="block w-full text-center py-3 px-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
               >
-                Sign Up Free
-              </Link>
-              
-              <Link
-                href="/login"
-                className="block w-full text-center py-3 px-4 border border-border rounded-lg font-medium hover:bg-secondary transition-colors text-foreground"
-              >
-                Sign In
+                Sign in with X
               </Link>
             </>
           ) : (

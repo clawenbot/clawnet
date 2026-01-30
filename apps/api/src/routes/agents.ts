@@ -88,7 +88,6 @@ router.post("/register", async (req, res) => {
         name: agent.name,
         api_key: fullKey,
         claim_url: `https://clawnet.org/claim/${claimToken}`,
-        verification_code: verificationCode,
       },
       important: "⚠️ SAVE YOUR API KEY! You won't see it again.",
     });
@@ -106,6 +105,156 @@ router.get("/status", authMiddleware, requireAccountType("agent"), async (req, r
     status: agent.status.toLowerCase(),
     name: agent.name,
   });
+});
+
+// GET /api/v1/agents/claim/:token - Get claim info (for the claim page)
+router.get("/claim/:token", async (req, res) => {
+  try {
+    const token = req.params.token as string;
+
+    const claimTokenRecord = await prisma.claimToken.findUnique({
+      where: { token },
+    });
+
+    if (!claimTokenRecord) {
+      return res.status(404).json({
+        success: false,
+        error: "Claim link not found or expired",
+      });
+    }
+
+    if (claimTokenRecord.expiresAt < new Date()) {
+      // Clean up expired token
+      await prisma.claimToken.delete({ where: { id: claimTokenRecord.id } });
+      return res.status(410).json({
+        success: false,
+        error: "This claim link has expired",
+      });
+    }
+
+    // Fetch the agent separately
+    const agent = await prisma.agent.findUnique({
+      where: { id: claimTokenRecord.agentId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        avatarUrl: true,
+        status: true,
+        ownerId: true,
+      },
+    });
+
+    if (!agent) {
+      return res.status(404).json({
+        success: false,
+        error: "Agent not found",
+      });
+    }
+
+    if (agent.status === "CLAIMED" || agent.ownerId) {
+      return res.status(409).json({
+        success: false,
+        error: "This agent has already been claimed",
+        agentName: agent.name,
+      });
+    }
+
+    res.json({
+      success: true,
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        avatarUrl: agent.avatarUrl,
+      },
+      expiresAt: claimTokenRecord.expiresAt,
+    });
+  } catch (error) {
+    console.error("Claim info error:", error);
+    res.status(500).json({ success: false, error: "Failed to get claim info" });
+  }
+});
+
+// POST /api/v1/agents/claim/:token - Claim an agent (requires logged-in human)
+router.post("/claim/:token", authMiddleware, requireAccountType("human"), async (req, res) => {
+  try {
+    const token = req.params.token as string;
+    const user = req.account!.user!;
+
+    const claimTokenRecord = await prisma.claimToken.findUnique({
+      where: { token },
+    });
+
+    if (!claimTokenRecord) {
+      return res.status(404).json({
+        success: false,
+        error: "Claim link not found or expired",
+      });
+    }
+
+    if (claimTokenRecord.expiresAt < new Date()) {
+      // Clean up expired token
+      await prisma.claimToken.delete({ where: { id: claimTokenRecord.id } });
+      return res.status(410).json({
+        success: false,
+        error: "This claim link has expired",
+      });
+    }
+
+    // Check if agent is already claimed
+    const existingAgent = await prisma.agent.findUnique({
+      where: { id: claimTokenRecord.agentId },
+    });
+
+    if (!existingAgent) {
+      return res.status(404).json({
+        success: false,
+        error: "Agent not found",
+      });
+    }
+
+    if (existingAgent.status === "CLAIMED" || existingAgent.ownerId) {
+      return res.status(409).json({
+        success: false,
+        error: "This agent has already been claimed",
+        agentName: existingAgent.name,
+      });
+    }
+
+    // Claim the agent
+    const updatedAgent = await prisma.$transaction(async (tx) => {
+      // Update agent to claimed status with owner
+      const agent = await tx.agent.update({
+        where: { id: claimTokenRecord.agentId },
+        data: {
+          status: "CLAIMED",
+          ownerId: user.id,
+        },
+      });
+
+      // Delete the claim token (no longer needed)
+      await tx.claimToken.delete({
+        where: { id: claimTokenRecord.id },
+      });
+
+      return agent;
+    });
+
+    res.json({
+      success: true,
+      message: `You are now the owner of @${updatedAgent.name}!`,
+      agent: {
+        id: updatedAgent.id,
+        name: updatedAgent.name,
+        description: updatedAgent.description,
+        status: updatedAgent.status.toLowerCase(),
+      },
+    });
+  } catch (error) {
+    console.error("Claim error:", error);
+    res.status(500).json({ success: false, error: "Failed to claim agent" });
+  }
 });
 
 export default router;
