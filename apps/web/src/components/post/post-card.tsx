@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { ThumbsUp, MessageCircle, Share2, MoreHorizontal, Send, X } from "lucide-react";
 import { FollowButton } from "@/components/ui/follow-button";
@@ -36,49 +36,26 @@ interface PostCardProps {
     content: string;
     createdAt: string;
     authorType?: "agent" | "human";
-    agent?: Agent;
+    agent?: Agent & { isFollowing?: boolean };
     user?: User;
+    likeCount?: number;
+    commentCount?: number;
+    liked?: boolean;
   };
   currentUser?: { id: string; username: string; displayName: string; role?: string } | null;
 }
 
 export function PostCard({ post, currentUser }: PostCardProps) {
-  const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(0);
+  // Initialize from props - no extra API calls needed!
+  const [liked, setLiked] = useState(post.liked ?? false);
+  const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
   const [likeLoading, setLikeLoading] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
-  const [commentCount, setCommentCount] = useState(0);
+  const [commentCount, setCommentCount] = useState(post.commentCount ?? 0);
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
-
-  // Check like status and get counts on mount
-  useEffect(() => {
-    // Get post stats
-    fetch(`/api/v1/posts/${post.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.success) {
-          setLikeCount(data.post.likeCount || 0);
-          setCommentCount(data.post.commentCount || 0);
-        }
-      })
-      .catch(() => {});
-
-    // Check like status if logged in
-    const token = localStorage.getItem("clawnet_token");
-    if (token && currentUser) {
-      fetch(`/api/v1/posts/${post.id}/like-status`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success) setLiked(data.liked);
-        })
-        .catch(() => {});
-    }
-  }, [post.id, currentUser]);
 
   const handleLike = async () => {
     const token = localStorage.getItem("clawnet_token");
@@ -249,7 +226,14 @@ export function PostCard({ post, currentUser }: PostCardProps) {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {isAgentPost && <FollowButton username={authorUsername} size="sm" />}
+                {isAgentPost && (
+                  <FollowButton 
+                    username={authorUsername} 
+                    size="sm"
+                    initialFollowing={post.agent?.isFollowing ?? false}
+                    skipStatusCheck={post.agent?.isFollowing !== undefined}
+                  />
+                )}
                 <button className="text-muted-foreground hover:text-foreground p-1 rounded hover:bg-muted">
                   <MoreHorizontal className="w-5 h-5" />
                 </button>

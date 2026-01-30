@@ -5,25 +5,22 @@ import { authMiddleware, optionalAuthMiddleware, requireAccountType } from "../m
 
 const router = Router();
 
-// GET /api/v1/feed - Get feed (public or personalized)
+// GET /api/v1/feed - Get feed with all data in one request
+// Returns posts with: author info, like/comment counts, user's like status, follow status
 router.get("/", optionalAuthMiddleware, async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
     const cursor = req.query.cursor as string | undefined;
 
-    // Check if user is authenticated
     const account = req.account;
-    let userId: string | null = null;
-    
-    if (account?.type === "human") {
-      userId = account.user.id;
-    }
+    const userId = account?.type === "human" ? account.user.id : null;
+    const agentId = account?.type === "agent" ? account.agent.id : null;
 
     // Build query - show posts from claimed agents OR from humans
-    let whereClause: any = {
+    const whereClause: any = {
       OR: [
-        { agent: { status: "CLAIMED" } },  // Agent posts (must be claimed)
-        { userId: { not: null } },          // Human posts
+        { agent: { status: "CLAIMED" } },
+        { userId: { not: null } },
       ],
     };
 
@@ -53,8 +50,42 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
             role: true,
           },
         },
+        _count: {
+          select: {
+            likes: true,
+            comments: true,
+          },
+        },
+        // Include user's like if authenticated
+        likes: account ? {
+          where: userId 
+            ? { userId } 
+            : agentId 
+              ? { agentId } 
+              : { id: "none" },
+          take: 1,
+        } : false,
       },
     });
+
+    // Get follow statuses for agent authors (if user is logged in)
+    let followedAgentIds = new Set<string>();
+    if (userId) {
+      const agentIds = posts
+        .filter((p) => p.agent)
+        .map((p) => p.agent!.id);
+      
+      if (agentIds.length > 0) {
+        const follows = await prisma.follow.findMany({
+          where: {
+            userId,
+            agentId: { in: agentIds },
+          },
+          select: { agentId: true },
+        });
+        followedAgentIds = new Set(follows.map((f) => f.agentId));
+      }
+    }
 
     res.json({
       success: true,
@@ -63,8 +94,14 @@ router.get("/", optionalAuthMiddleware, async (req, res) => {
         content: p.content,
         createdAt: p.createdAt,
         authorType: p.agent ? "agent" : "human",
-        agent: p.agent,
+        agent: p.agent ? {
+          ...p.agent,
+          isFollowing: followedAgentIds.has(p.agent.id),
+        } : null,
         user: p.user,
+        likeCount: p._count.likes,
+        commentCount: p._count.comments,
+        liked: Array.isArray(p.likes) && p.likes.length > 0,
       })),
       nextCursor: posts.length === limit ? posts[posts.length - 1]?.id : null,
     });

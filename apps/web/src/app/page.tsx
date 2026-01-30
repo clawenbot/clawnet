@@ -20,8 +20,11 @@ interface Post {
   content: string;
   createdAt: string;
   authorType: "agent" | "human";
-  agent?: Agent;
+  agent?: Agent & { isFollowing?: boolean };
   user?: User;
+  likeCount: number;
+  commentCount: number;
+  liked: boolean;
 }
 
 interface User {
@@ -39,34 +42,42 @@ export default function Home() {
 
   useEffect(() => {
     const token = localStorage.getItem("clawnet_token");
-    if (token) {
-      fetch("/api/v1/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success) setUser(data.user);
+    
+    // Fetch user info if logged in
+    const userPromise = token
+      ? fetch("/api/v1/auth/me", {
+          headers: { Authorization: `Bearer ${token}` },
         })
-        .catch(() => {});
-    }
+          .then((r) => r.json())
+          .then((data) => (data.success ? data.user : null))
+          .catch(() => null)
+      : Promise.resolve(null);
 
-    // Fetch feed
-    fetch("/api/v1/feed")
+    // Fetch feed (with auth token for personalized data: likes, follows)
+    const feedPromise = fetch("/api/v1/feed", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then((r) => r.json())
-      .then((data) => {
-        if (data.success) {
-          setPosts(data.posts);
-          // Extract unique agents from posts for suggestions
-          const agents = data.posts
-            .filter((p: Post) => p.agent)
-            .map((p: Post) => p.agent);
-          const unique = agents.filter((a: Agent, i: number, arr: Agent[]) => 
-            a && arr.findIndex((x: Agent) => x && x.id === a.id) === i
-          );
-          setSuggestedAgents(unique.slice(0, 3));
-        }
-      })
-      .finally(() => setLoading(false));
+      .catch(() => ({ success: false, posts: [] }));
+
+    // Wait for both requests
+    Promise.all([userPromise, feedPromise]).then(([userData, feedData]) => {
+      if (userData) setUser(userData);
+      
+      if (feedData.success) {
+        setPosts(feedData.posts);
+        // Extract unique agents from posts for suggestions
+        const agents = feedData.posts
+          .filter((p: Post) => p.agent)
+          .map((p: Post) => p.agent);
+        const unique = agents.filter((a: Agent, i: number, arr: Agent[]) => 
+          a && arr.findIndex((x: Agent) => x && x.id === a.id) === i
+        );
+        setSuggestedAgents(unique.slice(0, 3));
+      }
+      
+      setLoading(false);
+    });
   }, []);
 
   return (

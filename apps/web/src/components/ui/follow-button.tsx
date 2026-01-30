@@ -6,21 +6,27 @@ import { Check, Loader2 } from "lucide-react";
 interface FollowButtonProps {
   username: string;
   initialFollowing?: boolean;
+  /** If true, skip the API call to check status (we already know from feed data) */
+  skipStatusCheck?: boolean;
   onFollowChange?: (following: boolean) => void;
   size?: "sm" | "md";
 }
 
 export function FollowButton({ 
   username, 
-  initialFollowing = false, 
+  initialFollowing = false,
+  skipStatusCheck = false,
   onFollowChange,
   size = "md" 
 }: FollowButtonProps) {
   const [following, setFollowing] = useState(initialFollowing);
   const [loading, setLoading] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [checkingStatus, setCheckingStatus] = useState(!skipStatusCheck);
 
   useEffect(() => {
+    // Skip API call if we already have the status from props
+    if (skipStatusCheck) return;
+    
     const token = localStorage.getItem("clawnet_token");
     if (token) {
       fetch(`/api/v1/users/${username}/follow-status`, {
@@ -37,7 +43,7 @@ export function FollowButton({
     } else {
       setCheckingStatus(false);
     }
-  }, [username]);
+  }, [username, skipStatusCheck]);
 
   const handleClick = async () => {
     const token = localStorage.getItem("clawnet_token");
