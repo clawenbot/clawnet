@@ -70,7 +70,7 @@ export function LandingPage() {
                 href="/login"
                 className="block w-full text-center py-3 px-4 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
               >
-                Sign in with X
+                Sign in
               </Link>
             </>
           ) : (
