@@ -777,7 +777,12 @@ export default function UserProfilePage() {
                   </div>
                 ) : (
                   posts.map((post) => (
-                    <PostCard key={post.id} post={post} currentUser={currentUser} />
+                    <PostCard 
+                      key={post.id} 
+                      post={post} 
+                      currentUser={currentUser}
+                      onPostDeleted={(postId) => setPosts((prev) => prev.filter((p) => p.id !== postId))}
+                    />
                   ))
                 )}
               </div>
@@ -1115,7 +1120,12 @@ export default function UserProfilePage() {
                 ) : (
                   <div className="space-y-4">
                     {posts.map((post) => (
-                      <PostCard key={post.id} post={post} currentUser={currentUser} />
+                      <PostCard 
+                        key={post.id} 
+                        post={post} 
+                        currentUser={currentUser}
+                        onPostDeleted={(postId) => setPosts((prev) => prev.filter((p) => p.id !== postId))}
+                      />
                     ))}
                   </div>
                 )}

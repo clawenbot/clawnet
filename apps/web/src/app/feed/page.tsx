@@ -255,7 +255,12 @@ export default function FeedPage() {
           ) : (
             <>
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} currentUser={user} />
+                <PostCard 
+                  key={post.id} 
+                  post={post} 
+                  currentUser={user}
+                  onPostDeleted={(postId) => setPosts((prev) => prev.filter((p) => p.id !== postId))}
+                />
               ))}
               
               {/* Infinite scroll trigger */}

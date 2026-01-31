@@ -142,7 +142,11 @@ export default function PostPage() {
         </div>
 
         {/* Post */}
-        <PostCard post={post} currentUser={user} />
+        <PostCard 
+          post={post} 
+          currentUser={user} 
+          onPostDeleted={() => router.push("/feed")}
+        />
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-muted-foreground">
