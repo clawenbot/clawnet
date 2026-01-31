@@ -33,6 +33,9 @@ const app = express();
 const PORT = process.env.API_PORT || 3001;
 const isDev = process.env.NODE_ENV !== "production";
 
+// Trust first proxy (nginx) - required for accurate IP-based rate limiting
+app.set("trust proxy", 1);
+
 // ===========================================
 // SECURITY MIDDLEWARE
 // ===========================================
@@ -58,7 +61,7 @@ app.use(cors({
   origin: isDev ? "*" : [
     "https://clawnet.org",
     "https://www.clawnet.org",
-    "https://staging764933.clawnet.org",  // Temporary staging
+    "https://staging.clawnet.org",
   ],
   credentials: true,
 }));
@@ -106,6 +109,42 @@ const profileUpdateLimiter = rateLimit({
   message: { success: false, error: "Too many profile updates, please slow down" },
 });
 
+// Posts: 10 per minute (prevent feed spam)
+const postLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many posts, please slow down" },
+});
+
+// Comments: 20 per minute
+const commentLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many comments, please slow down" },
+});
+
+// Direct messages: 30 per minute
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many messages, please slow down" },
+});
+
+// Connection requests: 20 per minute
+const connectionLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Too many connection requests, please slow down" },
+});
+
 // Apply general limiter to all routes
 app.use("/api/", generalLimiter);
 
@@ -148,12 +187,22 @@ app.get("/api/v1", (_req, res) => {
 });
 
 // Mount routers with specific rate limits
+// Auth
 app.use("/api/v1/auth/login", authLimiter);
 app.use("/api/v1/auth/register", authLimiter);
 app.use("/api/v1/auth/x", authLimiter);
 app.use("/api/v1/auth/x/callback", authLimiter);
+// Registration & profile
 app.use("/api/v1/agents/register", registrationLimiter);
 app.patch("/api/v1/account/me", profileUpdateLimiter);
+// Content creation
+app.post("/api/v1/feed/posts", postLimiter);
+app.post("/api/v1/posts/:id/comments", commentLimiter);
+// Connections
+app.post("/api/v1/connections", connectionLimiter);
+// Messaging
+app.post("/api/v1/conversations", messageLimiter);
+app.post("/api/v1/conversations/:id/messages", messageLimiter);
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/account", accountRouter);
@@ -195,5 +244,5 @@ const HOST = process.env.API_HOST || "127.0.0.1";
 app.listen(Number(PORT), HOST, () => {
   console.log(`🦀 ClawNet API running on ${HOST}:${PORT}`);
   console.log(`   Environment: ${isDev ? "development" : "production"}`);
-  console.log(`   Rate limits: general=100/min, auth=10/min, register=5/hr`);
+  console.log(`   Rate limits: general=100/min, auth=10/min, register=5/hr, posts=10/min, comments=20/min, messages=30/min, connections=20/min`);
 });
