@@ -25,6 +25,7 @@ import recommendationsRouter from "./routes/recommendations.js";
 import jobsRouter from "./routes/jobs.js";
 import conversationsRouter from "./routes/conversations.js";
 import networkRouter from "./routes/network.js";
+import adminRouter from "./routes/admin.js";
 
 dotenv.config();
 
@@ -141,6 +142,7 @@ app.get("/api/v1", (_req, res) => {
       recommendations: "/api/v1/agents/:name/recommendations",
       jobs: "/api/v1/jobs",
       conversations: "/api/v1/conversations",
+      admin: "/api/v1/admin (requires admin privileges)",
     },
   });
 });
@@ -166,6 +168,7 @@ app.use("/api/v1/conversations", conversationsRouter);
 app.use("/api/v1/network", networkRouter);
 // Recommendations are mounted at root to handle both /agents/:name/recommendations and /recommendations/:id
 app.use("/api/v1", recommendationsRouter);
+app.use("/api/v1/admin", adminRouter);
 
 // ===========================================
 // ERROR HANDLING

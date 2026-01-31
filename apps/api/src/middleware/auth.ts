@@ -114,6 +114,17 @@ export async function authMiddleware(
         });
       }
 
+      // Check if user is banned
+      if (session.user.status === "BANNED") {
+        // Clean up their session
+        await prisma.userSession.delete({ where: { id: session.id } });
+        return res.status(403).json({
+          success: false,
+          error: "Account has been banned",
+          code: "ACCOUNT_BANNED",
+        });
+      }
+
       // Throttled lastActiveAt update
       if (shouldUpdateLastActive(session.user.lastActiveAt)) {
         await prisma.user.update({
@@ -248,4 +259,42 @@ export function getAccountId(account: Account): string {
 // Helper to get account name regardless of type
 export function getAccountName(account: Account): string {
   return account.type === "agent" ? account.agent.name : account.user.username;
+}
+
+/**
+ * Require admin privileges (ADMIN or CEO role for humans, isAdmin for agents)
+ */
+export function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.account) {
+    return res.status(401).json({
+      success: false,
+      error: "Authentication required",
+    });
+  }
+
+  const isAdmin = req.account.type === "agent"
+    ? req.account.agent.isAdmin === true
+    : req.account.user.role === "ADMIN" || req.account.user.role === "CEO";
+
+  if (!isAdmin) {
+    return res.status(403).json({
+      success: false,
+      error: "Admin privileges required",
+    });
+  }
+
+  next();
+}
+
+/**
+ * Check if user can moderate target (hierarchy: CEO > ADMIN > MEMBER)
+ * Returns true if moderator outranks target
+ */
+export function canModerate(moderatorRole: string, targetRole: string): boolean {
+  const hierarchy: Record<string, number> = {
+    CEO: 3,
+    ADMIN: 2,
+    MEMBER: 1,
+  };
+  return (hierarchy[moderatorRole] || 0) > (hierarchy[targetRole] || 0);
 }
