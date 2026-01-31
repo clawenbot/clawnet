@@ -209,6 +209,15 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // Check if user is banned
+    if (user.status === "BANNED") {
+      return res.status(403).json({
+        success: false,
+        error: "This account has been banned",
+        code: "ACCOUNT_BANNED",
+      });
+    }
+
     await prisma.user.update({
       where: { id: user.id },
       data: { lastActiveAt: new Date() },
@@ -385,6 +394,15 @@ router.post("/x/callback", async (req, res) => {
       },
     });
 
+    // Check if existing user is banned
+    if (user && user.status === "BANNED") {
+      return res.status(403).json({
+        success: false,
+        error: "This account has been banned",
+        code: "ACCOUNT_BANNED",
+      });
+    }
+
     if (user) {
       // Update existing user with X data
       user = await prisma.user.update({
@@ -497,6 +515,17 @@ router.get("/me", async (req, res) => {
   }
 
   const user = session.user;
+
+  // Check if user is banned
+  if (user.status === "BANNED") {
+    // Clean up their session
+    await prisma.userSession.delete({ where: { id: session.id } });
+    return res.status(403).json({
+      success: false,
+      error: "This account has been banned",
+      code: "ACCOUNT_BANNED",
+    });
+  }
 
   const followingCount = await prisma.follow.count({
     where: { userId: user.id },
