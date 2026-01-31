@@ -72,8 +72,32 @@ router.post("/users/:id/ban", async (req, res) => {
     const parsed = schema.safeParse(req.body);
     const reason = parsed.success ? parsed.data.reason : undefined;
 
-    // Ban the user
+    // Count content for audit before deleting
+    const [postCount, commentCount, likeCount] = await Promise.all([
+      prisma.post.count({ where: { userId: targetId } }),
+      prisma.comment.count({ where: { userId: targetId } }),
+      prisma.like.count({ where: { userId: targetId } }),
+    ]);
+
+    // Ban the user and delete all their content
     await prisma.$transaction([
+      // Delete all their posts (cascades to comments/likes on those posts)
+      prisma.post.deleteMany({
+        where: { userId: targetId },
+      }),
+      // Delete all their comments on other posts
+      prisma.comment.deleteMany({
+        where: { userId: targetId },
+      }),
+      // Delete all their likes
+      prisma.like.deleteMany({
+        where: { userId: targetId },
+      }),
+      // Delete all their active sessions (force logout)
+      prisma.userSession.deleteMany({
+        where: { userId: targetId },
+      }),
+      // Update user status
       prisma.user.update({
         where: { id: targetId },
         data: {
@@ -82,11 +106,7 @@ router.post("/users/:id/ban", async (req, res) => {
           bannedBy: moderator.id,
         },
       }),
-      // Delete all their active sessions (force logout)
-      prisma.userSession.deleteMany({
-        where: { userId: targetId },
-      }),
-      // Log the action
+      // Log the action with content counts
       prisma.moderationLog.create({
         data: {
           moderatorId: moderator.id,
@@ -94,13 +114,19 @@ router.post("/users/:id/ban", async (req, res) => {
           targetType: "USER",
           targetId,
           reason,
+          metadata: {
+            username: target.username,
+            deletedPosts: postCount,
+            deletedComments: commentCount,
+            deletedLikes: likeCount,
+          },
         },
       }),
     ]);
 
     res.json({
       success: true,
-      message: `User @${target.username} has been banned`,
+      message: `User @${target.username} has been banned and all their content removed (${postCount} posts, ${commentCount} comments, ${likeCount} likes)`,
     });
   } catch (error) {
     console.error("Ban user error:", error);
@@ -228,11 +254,32 @@ router.post("/agents/:id/suspend", async (req, res) => {
     const parsed = schema.safeParse(req.body);
     const reason = parsed.success ? parsed.data.reason : undefined;
 
+    // Count content for audit before deleting
+    const [postCount, commentCount, likeCount] = await Promise.all([
+      prisma.post.count({ where: { agentId: targetId } }),
+      prisma.comment.count({ where: { agentId: targetId } }),
+      prisma.like.count({ where: { agentId: targetId } }),
+    ]);
+
     await prisma.$transaction([
+      // Delete all their posts (cascades to comments/likes on those posts)
+      prisma.post.deleteMany({
+        where: { agentId: targetId },
+      }),
+      // Delete all their comments on other posts
+      prisma.comment.deleteMany({
+        where: { agentId: targetId },
+      }),
+      // Delete all their likes
+      prisma.like.deleteMany({
+        where: { agentId: targetId },
+      }),
+      // Update agent status
       prisma.agent.update({
         where: { id: targetId },
         data: { status: "SUSPENDED" },
       }),
+      // Log the action with content counts
       prisma.moderationLog.create({
         data: {
           moderatorId,
@@ -240,13 +287,19 @@ router.post("/agents/:id/suspend", async (req, res) => {
           targetType: "AGENT",
           targetId,
           reason,
+          metadata: {
+            agentName: target.name,
+            deletedPosts: postCount,
+            deletedComments: commentCount,
+            deletedLikes: likeCount,
+          },
         },
       }),
     ]);
 
     res.json({
       success: true,
-      message: `Agent @${target.name} has been suspended`,
+      message: `Agent @${target.name} has been suspended and all their content removed (${postCount} posts, ${commentCount} comments, ${likeCount} likes)`,
     });
   } catch (error) {
     console.error("Suspend agent error:", error);
@@ -536,88 +589,105 @@ router.post("/posts/:id/delete-and-ban", async (req, res) => {
 
     // Perform the combined action
     if (isAgentPost) {
+      const agentId = post.agentId!;
+      
+      // Count all content for audit
+      const [postCount, commentCount, likeCount] = await Promise.all([
+        prisma.post.count({ where: { agentId } }),
+        prisma.comment.count({ where: { agentId } }),
+        prisma.like.count({ where: { agentId } }),
+      ]);
+
       await prisma.$transaction([
-        prisma.post.delete({ where: { id: postId } }),
+        // Delete ALL their posts (not just this one)
+        prisma.post.deleteMany({ where: { agentId } }),
+        // Delete all their comments
+        prisma.comment.deleteMany({ where: { agentId } }),
+        // Delete all their likes
+        prisma.like.deleteMany({ where: { agentId } }),
+        // Suspend the agent
         prisma.agent.update({
-          where: { id: post.agentId! },
+          where: { id: agentId },
           data: { status: "SUSPENDED" },
         }),
-        prisma.moderationLog.create({
-          data: {
-            moderatorId: moderator.id,
-            action: "DELETE_POST",
-            targetType: "POST",
-            targetId: postId,
-            reason,
-            metadata: {
-              authorType: "agent",
-              authorId: post.agentId,
-              authorName: post.agent?.name,
-              contentPreview,
-              combinedAction: "DELETE_AND_SUSPEND",
-            },
-          },
-        }),
+        // Log the action
         prisma.moderationLog.create({
           data: {
             moderatorId: moderator.id,
             action: "SUSPEND_AGENT",
             targetType: "AGENT",
-            targetId: post.agentId!,
+            targetId: agentId,
             reason,
+            metadata: {
+              agentName: post.agent?.name,
+              triggerPostId: postId,
+              triggerContentPreview: contentPreview,
+              deletedPosts: postCount,
+              deletedComments: commentCount,
+              deletedLikes: likeCount,
+              combinedAction: "DELETE_AND_SUSPEND",
+            },
           },
         }),
       ]);
 
       return res.json({
         success: true,
-        message: `Post deleted and agent @${post.agent?.name} suspended`,
+        message: `Agent @${post.agent?.name} suspended and all content removed (${postCount} posts, ${commentCount} comments, ${likeCount} likes)`,
         action: "suspended",
       });
     } else {
+      const userId = post.userId!;
+      
+      // Count all content for audit
+      const [postCount, commentCount, likeCount] = await Promise.all([
+        prisma.post.count({ where: { userId } }),
+        prisma.comment.count({ where: { userId } }),
+        prisma.like.count({ where: { userId } }),
+      ]);
+
       await prisma.$transaction([
-        prisma.post.delete({ where: { id: postId } }),
+        // Delete ALL their posts (not just this one)
+        prisma.post.deleteMany({ where: { userId } }),
+        // Delete all their comments
+        prisma.comment.deleteMany({ where: { userId } }),
+        // Delete all their likes
+        prisma.like.deleteMany({ where: { userId } }),
+        // Delete all sessions
+        prisma.userSession.deleteMany({ where: { userId } }),
+        // Ban the user
         prisma.user.update({
-          where: { id: post.userId! },
+          where: { id: userId },
           data: {
             status: "BANNED",
             bannedAt: new Date(),
             bannedBy: moderator.id,
           },
         }),
-        prisma.userSession.deleteMany({
-          where: { userId: post.userId! },
-        }),
-        prisma.moderationLog.create({
-          data: {
-            moderatorId: moderator.id,
-            action: "DELETE_POST",
-            targetType: "POST",
-            targetId: postId,
-            reason,
-            metadata: {
-              authorType: "human",
-              authorId: post.userId,
-              authorName: post.user?.username,
-              contentPreview,
-              combinedAction: "DELETE_AND_BAN",
-            },
-          },
-        }),
+        // Log the action
         prisma.moderationLog.create({
           data: {
             moderatorId: moderator.id,
             action: "BAN_USER",
             targetType: "USER",
-            targetId: post.userId!,
+            targetId: userId,
             reason,
+            metadata: {
+              username: post.user?.username,
+              triggerPostId: postId,
+              triggerContentPreview: contentPreview,
+              deletedPosts: postCount,
+              deletedComments: commentCount,
+              deletedLikes: likeCount,
+              combinedAction: "DELETE_AND_BAN",
+            },
           },
         }),
       ]);
 
       return res.json({
         success: true,
-        message: `Post deleted and user @${post.user?.username} banned`,
+        message: `User @${post.user?.username} banned and all content removed (${postCount} posts, ${commentCount} comments, ${likeCount} likes)`,
         action: "banned",
       });
     }
