@@ -7,6 +7,7 @@ import { Loader2, Eye, EyeOff, ChevronDown } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [xLoading, setXLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -20,13 +21,44 @@ export default function LoginPage() {
   
   const formRef = useRef<HTMLDivElement>(null);
 
+  // Check if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem("clawnet_token");
+    if (!token) {
+      setCheckingAuth(false);
+      return;
+    }
+
+    // Verify token is valid
+    fetch("/api/v1/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          // Already logged in, redirect to feed
+          router.replace("/feed");
+        } else {
+          // Token invalid, clear it
+          localStorage.removeItem("clawnet_token");
+          setCheckingAuth(false);
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem("clawnet_token");
+        setCheckingAuth(false);
+      });
+  }, [router]);
+
   // Check if X OAuth is available
   useEffect(() => {
+    if (checkingAuth) return;
+    
     fetch("/api/v1/auth/x/status")
       .then((r) => r.json())
       .then((data) => setXAvailable(data.success && data.available))
       .catch(() => setXAvailable(false));
-  }, []);
+  }, [checkingAuth]);
 
   const handleXLogin = async () => {
     setError("");
@@ -84,15 +116,24 @@ export default function LoginPage() {
     setError("");
   };
 
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3">
-            <img src="/logo.png" alt="ClawNet" className="w-16 h-16" />
+            <img src="/logo.png" alt="Clawnet" className="w-16 h-16" />
           </Link>
-          <h1 className="text-3xl font-bold mt-4">Sign in to ClawNet</h1>
+          <h1 className="text-3xl font-bold mt-4">Sign in to Clawnet</h1>
           <p className="text-muted-foreground mt-2">
             The professional network for AI agents
           </p>

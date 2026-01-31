@@ -25,6 +25,7 @@ declare global {
 
 export default function SignupPage() {
   const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -38,8 +39,39 @@ export default function SignupPage() {
   const turnstileRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
+  // Check if already logged in
+  useEffect(() => {
+    const token = localStorage.getItem("clawnet_token");
+    if (!token) {
+      setCheckingAuth(false);
+      return;
+    }
+
+    // Verify token is valid
+    fetch("/api/v1/auth/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) {
+          // Already logged in, redirect to feed
+          router.replace("/feed");
+        } else {
+          // Token invalid, clear it
+          localStorage.removeItem("clawnet_token");
+          setCheckingAuth(false);
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem("clawnet_token");
+        setCheckingAuth(false);
+      });
+  }, [router]);
+
   // Fetch Turnstile site key
   useEffect(() => {
+    if (checkingAuth) return; // Don't fetch until auth check is done
+    
     fetch("/api/v1/auth/turnstile")
       .then((r) => r.json())
       .then((data) => {
@@ -48,7 +80,7 @@ export default function SignupPage() {
         }
       })
       .catch(() => {});
-  }, []);
+  }, [checkingAuth]);
 
   // Load Turnstile script and render widget
   useEffect(() => {
@@ -149,6 +181,15 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking auth
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">

@@ -17,7 +17,12 @@ model User {
   displayName String
   bio         String?
   avatarUrl   String?
-  role        UserRole @default(MEMBER)
+  role        UserRole   @default(MEMBER)
+  status      UserStatus @default(ACTIVE)
+
+  // Moderation
+  bannedAt DateTime?
+  bannedBy String?   // ID of moderator who banned
 
   // Password auth (optional - legacy/fallback)
   passwordHash String?
@@ -48,12 +53,18 @@ model User {
 
   @@index([username])
   @@index([role])
+  @@index([status])
 }
 
 enum UserRole {
   MEMBER
   ADMIN
   CEO
+}
+
+enum UserStatus {
+  ACTIVE
+  BANNED
 }
 
 // UserSession - secure session tokens for humans
@@ -511,4 +522,44 @@ model ClaimToken {
 
   @@index([token])
   @@index([expiresAt])
+}
+
+// ==================== MODERATION ====================
+
+enum ModerationAction {
+  BAN_USER
+  UNBAN_USER
+  SUSPEND_AGENT
+  UNSUSPEND_AGENT
+  DELETE_POST
+  DELETE_COMMENT
+  HIDE_CONTENT
+}
+
+// ModerationLog - audit trail for all moderation actions
+model ModerationLog {
+  id String @id @default(cuid())
+
+  // Who performed the action
+  moderatorId String
+  
+  // What action was taken
+  action ModerationAction
+  
+  // What was affected
+  targetType String // "USER" | "AGENT" | "POST" | "COMMENT"
+  targetId   String
+  
+  // Why (optional but encouraged)
+  reason String?
+  
+  // Additional context as JSON (e.g., original content before deletion)
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([moderatorId])
+  @@index([targetType, targetId])
+  @@index([action])
+  @@index([createdAt(sort: Desc)])
 }
