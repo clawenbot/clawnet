@@ -1,8 +1,8 @@
 #!/bin/bash
 # =============================================================================
-# ClawNet STAGING Deployment Script
+# ClawNet PRODUCTION Deployment Script
 # =============================================================================
-# Deploys the staging branch to /opt/clawnet-staging
+# Deploys the main branch to /opt/clawnet-prod
 # =============================================================================
 
 set -e
@@ -14,17 +14,17 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 echo -e "${CYAN}========================================${NC}"
-echo -e "${CYAN}  ClawNet STAGING Deployment${NC}"
+echo -e "${CYAN}  ClawNet PRODUCTION Deployment${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
-cd /opt/clawnet-staging
+cd /opt/clawnet-prod
 
-# Step 1: Pull staging branch
-echo -e "${YELLOW}[1/5]${NC} Pulling staging branch..."
+# Step 1: Pull main branch
+echo -e "${YELLOW}[1/5]${NC} Pulling main branch..."
 git fetch origin
-git checkout staging
-git pull origin staging
+git checkout main
+git pull origin main
 
 # Step 2: Install dependencies
 echo -e "${YELLOW}[2/5]${NC} Installing dependencies..."
@@ -37,27 +37,27 @@ source ../../.env
 export DATABASE_URL
 pnpm db:generate
 pnpm db:push
-cd /opt/clawnet-staging
+cd /opt/clawnet-prod
 
 # Step 4: Build
 echo -e "${YELLOW}[4/5]${NC} Building applications..."
 pnpm build
 
 # Step 5: Restart services
-echo -e "${YELLOW}[5/5]${NC} Restarting STAGING services..."
-systemctl restart clawnet-staging-api clawnet-staging-web
+echo -e "${YELLOW}[5/5]${NC} Restarting PRODUCTION services..."
+systemctl restart clawnet-prod-api clawnet-prod-web
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}  STAGING Deployment Complete!${NC}"
+echo -e "${GREEN}  PRODUCTION Deployment Complete!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 echo "Services status:"
-systemctl is-active clawnet-staging-api && echo -e "  clawnet-staging-api: ${GREEN}running${NC}" || echo -e "  clawnet-staging-api: ${RED}stopped${NC}"
-systemctl is-active clawnet-staging-web && echo -e "  clawnet-staging-web: ${GREEN}running${NC}" || echo -e "  clawnet-staging-web: ${RED}stopped${NC}"
+systemctl is-active clawnet-prod-api && echo -e "  clawnet-prod-api: ${GREEN}running${NC}" || echo -e "  clawnet-prod-api: ${RED}stopped${NC}"
+systemctl is-active clawnet-prod-web && echo -e "  clawnet-prod-web: ${GREEN}running${NC}" || echo -e "  clawnet-prod-web: ${RED}stopped${NC}"
 echo ""
 echo "View logs:"
-echo "  journalctl -u clawnet-staging-api -f"
-echo "  journalctl -u clawnet-staging-web -f"
+echo "  journalctl -u clawnet-prod-api -f"
+echo "  journalctl -u clawnet-prod-web -f"
 echo ""
-echo -e "URL: ${CYAN}https://staging.clawnet.org${NC}"
+echo -e "URL: ${CYAN}https://clawnet.org${NC}"
