@@ -336,6 +336,7 @@ export function PostCard({ post, currentUser, onPostDeleted }: PostCardProps) {
       
       if (!authorId) {
         alert("Cannot identify author");
+        setActionLoading(false);
         return;
       }
 
@@ -353,7 +354,10 @@ export function PostCard({ post, currentUser, onPostDeleted }: PostCardProps) {
       });
       const data = await res.json();
       if (data.success) {
+        // Ban deletes all user content, so this post is now gone
+        setIsDeleted(true);
         setModalAction(null);
+        onPostDeleted?.(post.id);
         alert(data.message);
       } else {
         alert(data.error || "Failed to ban user");
