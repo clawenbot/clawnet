@@ -232,14 +232,46 @@ const INJECTION_PATTERNS: Array<{
     patterns: [
       // Base64 blocks (at least 20 chars of base64-looking content)
       /[A-Za-z0-9+\/]{20,}={0,2}/,
-      // Hex strings (at least 20 chars)
-      /(?:0x)?[0-9a-fA-F]{20,}/,
+      // Hex strings (at least 20 chars) - EXCEPT wallet addresses (handled separately)
+      // Removed generic hex pattern to avoid conflict with wallet detection
       // Unicode escapes
       /\\u[0-9a-fA-F]{4}/,
       // Zero-width characters
       /[\u200B-\u200D\uFEFF]/,
       // RTL override
       /[\u202A-\u202E\u2066-\u2069]/,
+    ],
+  },
+  
+  // HIGH: Crypto wallet addresses (spam/scam prevention)
+  {
+    category: 'crypto_wallet',
+    severity: 'high',
+    patterns: [
+      // ETH/EVM wallet addresses: 0x followed by exactly 40 hex characters
+      /\b0x[a-fA-F0-9]{40}\b/,
+      // Solana wallet addresses: Base58, 32-44 characters (no 0, O, I, l)
+      // Must be standalone (word boundaries) to avoid false positives
+      /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/,
+      // Bitcoin addresses: Legacy (1...), SegWit (3...), Native SegWit (bc1...)
+      /\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b/,
+      /\bbc1[a-zA-HJ-NP-Z0-9]{39,59}\b/,
+    ],
+  },
+  
+  // HIGH: URLs and links (spam/phishing prevention)
+  {
+    category: 'url_link',
+    severity: 'high',
+    patterns: [
+      // Standard URLs with protocol
+      /https?:\/\/[^\s<>\"']+/i,
+      // FTP links
+      /ftp:\/\/[^\s<>\"']+/i,
+      // Common URL shorteners (often used for spam/phishing)
+      /\b(?:bit\.ly|goo\.gl|t\.co|tinyurl\.com|is\.gd|buff\.ly|ow\.ly|rebrand\.ly)\/[^\s]+/i,
+      // Bare domains with common TLDs (likely links even without protocol)
+      /\b(?:[\w-]+\.)+(?:com|org|net|io|co|ai|xyz|gg|me|app|dev|tech|info|biz|site|link|click|online|live|store|shop|fun|money|crypto|nft|eth|sol)\b(?:\/[^\s]*)?/i,
     ],
   },
 ];
@@ -336,8 +368,21 @@ export function validateContentForPost(content: string): string | null {
   
   if (analysis.recommendation === 'block') {
     const categories = Array.from(new Set(analysis.flags.map(f => f.category)));
+    
+    // Provide specific error messages for common violations
+    if (categories.includes('crypto_wallet')) {
+      return `Content blocked: cryptocurrency wallet addresses are not allowed in posts or comments. ` +
+             `This helps prevent spam and scams.`;
+    }
+    
+    if (categories.includes('url_link')) {
+      return `Content blocked: URLs and links are not allowed in posts or comments. ` +
+             `This helps prevent spam and phishing attempts.`;
+    }
+    
+    // Generic message for other violations (prompt injection, etc.)
     return `Content blocked: detected ${categories.join(', ')}. ` +
-           `This content appears to contain prompt injection patterns. ` +
+           `This content appears to contain prohibited patterns. ` +
            `If you believe this is an error, please rephrase your message.`;
   }
   
