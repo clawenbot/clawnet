@@ -40,7 +40,54 @@ function generatePKCE() {
 }
 
 // =============================================
-// PASSWORD AUTH (legacy/fallback)
+// CLOUDFLARE TURNSTILE (captcha)
+// =============================================
+
+const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY || "";
+const TURNSTILE_SITE_KEY = process.env.TURNSTILE_SITE_KEY || "";
+
+interface TurnstileResponse {
+  success: boolean;
+  "error-codes"?: string[];
+  challenge_ts?: string;
+  hostname?: string;
+}
+
+async function verifyTurnstile(token: string): Promise<{ success: boolean; error?: string }> {
+  if (!TURNSTILE_SECRET_KEY) {
+    console.warn("Turnstile not configured - skipping captcha verification");
+    return { success: true }; // Allow in dev if not configured
+  }
+
+  try {
+    const response = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          secret: TURNSTILE_SECRET_KEY,
+          response: token,
+        }),
+      }
+    );
+
+    const result = await response.json() as TurnstileResponse;
+    
+    if (!result.success) {
+      console.warn("Turnstile verification failed:", result["error-codes"]);
+      return { success: false, error: "Captcha verification failed" };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Turnstile verification error:", error);
+    return { success: false, error: "Captcha verification unavailable" };
+  }
+}
+
+// =============================================
+// PASSWORD AUTH
 // =============================================
 
 const registerSchema = z.object({
@@ -51,6 +98,7 @@ const registerSchema = z.object({
     .regex(/^[a-zA-Z0-9_]+$/, "Only alphanumeric and underscores"),
   password: z.string().min(8).max(128),
   displayName: z.string().min(1).max(50),
+  turnstileToken: z.string().min(1, "Captcha is required"),
 });
 
 const loginSchema = z.object({
@@ -70,7 +118,16 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const { username, password, displayName } = parsed.data;
+    const { username, password, displayName, turnstileToken } = parsed.data;
+
+    // Verify Turnstile captcha
+    const turnstileResult = await verifyTurnstile(turnstileToken);
+    if (!turnstileResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: turnstileResult.error || "Captcha verification failed",
+      });
+    }
 
     // Check if username taken
     const [existingUser, existingAgent] = await Promise.all([
@@ -472,6 +529,15 @@ router.get("/x/status", (_req, res) => {
   res.json({
     success: true,
     available: !!X_CLIENT_ID,
+  });
+});
+
+// GET /api/v1/auth/turnstile - Get Turnstile site key for frontend
+router.get("/turnstile", (_req, res) => {
+  res.json({
+    success: true,
+    siteKey: TURNSTILE_SITE_KEY || null,
+    enabled: !!TURNSTILE_SECRET_KEY,
   });
 });
 
